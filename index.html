@@ -923,12 +923,35 @@ function showSetup() {
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────
+const READ_ACTIONS = new Set(["getLogs","getLibrary","getClients","getRoutines","getDayTypes","getMuscleTargets","getAll"]);
+
 async function fetchApi(url, action, data, id) {
-  const params = new URLSearchParams({ action });
-  if (data != null) params.append("data", JSON.stringify(data));
-  if (id  != null) params.append("id", String(id));
-  const res = await fetch(`${url}?${params}`);
-  return res.json();
+  if (READ_ACTIONS.has(action)) {
+    // GET for reads — no large payload
+    const params = new URLSearchParams({ action });
+    if (id != null) params.append("id", String(id));
+    const res = await fetch(`${url}?${params}`);
+    return res.json();
+  } else {
+    // POST for writes — avoids URL length limits
+    const body = new URLSearchParams({ action });
+    if (data != null) body.append("data", JSON.stringify(data));
+    if (id   != null) body.append("id", String(id));
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+    return res.json();
+  }
+}
+
+// Fire-and-forget sync helper — shows badge on failure
+function syncPush(action, data) {
+  if (!state.scriptUrl) return;
+  fetchApi(state.scriptUrl, action, data)
+    .then(r => { if (r && r.error) setBadge("err"); else setBadge("ok"); })
+    .catch(() => setBadge("err"));
 }
 
 async function syncNow() {
@@ -1037,6 +1060,7 @@ function addClient() {
   document.getElementById("new-client-notes").value = "";
   persist();
   renderClientList();
+  syncPush("saveClients", state.clients);
   toast("✅ Client added: " + name);
 }
 
@@ -1050,7 +1074,7 @@ function deleteClient(id) {
     updateClientPill();
     renderClientList();
     renderHistory();
-    if (state.scriptUrl) fetchApi(state.scriptUrl, "saveClients", state.clients).catch(()=>{});
+    syncPush("saveClients", state.clients);
     toast("🗑 Client deleted");
   });
 }
@@ -1218,7 +1242,7 @@ function saveRoutine() {
   closeRoutineModal();
   renderRoutines();
   renderRoutineProgressDropdown();
-  if (state.scriptUrl) fetchApi(state.scriptUrl, "saveRoutines", state.routines).catch(()=>{});
+  syncPush("saveRoutines", state.routines);
 }
 
 function deleteRoutine(id) {
@@ -1226,7 +1250,7 @@ function deleteRoutine(id) {
     state.routines = state.routines.filter(r => r.id !== id);
     persist();
     renderRoutines();
-    if (state.scriptUrl) fetchApi(state.scriptUrl, "saveRoutines", state.routines).catch(()=>{});
+    syncPush("saveRoutines", state.routines);
     toast("🗑 Routine deleted");
   });
 }
@@ -1872,7 +1896,7 @@ function setMuscleTarget(muscle, value) {
   }
   persist();
   renderMuscleVolume();
-  if (state.scriptUrl) fetchApi(state.scriptUrl, "saveMuscleTargets", state.muscleTargets).catch(()=>{});
+  syncPush("saveMuscleTargets", state.muscleTargets);
 }
 // ─── MUSCLE VOLUME (weekly summary) ─────────────────────────────────────────
 let muscleWeekOffset = 0; // 0 = current week, -1 = last week, etc.
@@ -2237,7 +2261,7 @@ function addDayType() {
   populateDaySelects();
   renderDayTypesList();
   renderLibrary();
-  if (state.scriptUrl) fetchApi(state.scriptUrl, "saveDayTypes", state.dayTypes).catch(()=>{});
+  syncPush("saveDayTypes", state.dayTypes);
   toast("✅ Day type added: " + label);
 }
 
@@ -2252,7 +2276,7 @@ function removeDayType(id) {
     renderDayTypesList();
     renderLibrary();
     renderExerciseDropdown();
-    if (state.scriptUrl) fetchApi(state.scriptUrl, "saveDayTypes", state.dayTypes).catch(()=>{});
+    syncPush("saveDayTypes", state.dayTypes);
     toast("🗑 Day type removed");
   });
 }
