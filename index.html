@@ -3,12 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0d0d1a">
 <title>Gym Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
+
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   :root {
     --bg: #0d0d1a; --card: #1a1a2e; --card2: #16213e;
@@ -400,6 +398,11 @@
     transition: background .15s, color .15s;
   }
   .preset-btn:active, .preset-btn.active-preset { background: #1e3a5f; color: #93c5fd; }
+
+  .muscle-tag { display:inline-flex; align-items:center; gap:4px; background:var(--card2); border-radius:20px; padding:4px 10px; font-size:12px; font-weight:600; }
+  .muscle-tag button { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:0; line-height:1; }
+  .muscle-tag:first-child { background:#1e3a5f; color:#93c5fd; }
+
 </style>
 </head>
 <body>
@@ -441,14 +444,20 @@
     <div class="modal-title" id="routine-modal-title">📋 New Routine</div>
 
     <div class="mb8"><input type="text" id="rname" placeholder="Routine name (e.g. Push A)…"></div>
-    <div class="mb10">
-      <select id="rday"></select>
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:700">Tags</div>
+      <div id="rbuilder-tag-pills" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;min-height:26px"></div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <select id="rbuilder-tag-pick" style="flex:1;height:38px"></select>
+        <button onclick="rbuilderAddTag()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 12px;height:38px;font-size:15px;font-weight:700;cursor:pointer;flex-shrink:0">+</button>
+        <button onclick="rbuilderAddCustomTag()" style="background:var(--card2);color:var(--muted);border:none;border-radius:8px;padding:0 10px;height:38px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">+ New</button>
+      </div>
     </div>
 
     <div class="section-label">Exercises</div>
-    <div class="row2 mb8">
-      <select id="radd-ex"></select>
-      <button class="btn btn-blue btn-sm" onclick="rbuilderAddEx()">+ Add</button>
+    <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+      <select id="radd-ex" style="flex:1;height:40px"></select>
+      <button onclick="rbuilderAddEx()" style="background:#1e3a5f;color:#93c5fd;border:none;border-radius:8px;padding:0 14px;height:40px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap;font-family:inherit;font-size:13px">+ Add</button>
     </div>
     <div id="rbuilder-exercises"></div>
 
@@ -488,7 +497,7 @@
           <div class="session-name" id="session-name"></div>
           <div class="session-sub" id="session-sub"></div>
         </div>
-        <button onclick="clearLoadedRoutine()">✕ End</button>
+        <button onclick="endWorkout()">✕ End</button>
       </div>
       <div style="margin-bottom:12px">
         <input type="date" id="log-date-session" style="max-width:160px">
@@ -500,7 +509,6 @@
     <div id="free-log-section">
       <div class="row2">
         <input type="date" id="log-date">
-        <select id="log-day" onchange="onDayChange()"></select>
       </div>
       <select id="log-exercise" class="mb10" onchange="onExerciseChange()">
         <option value="">— Select exercise —</option>
@@ -530,9 +538,8 @@
       <button class="prog-mode-btn" id="prog-mode-muscles" onclick="setProgMode('muscles')">Muscles</button>
     </div>
     <div id="prog-exercise-mode">
-      <div class="row2 mb10">
+      <div class="mb10">
         <select id="prog-exercise" onchange="renderProgress()"></select>
-        <select id="prog-day" onchange="renderProgress()"></select>
       </div>
       <div id="progress-content"></div>
     </div>
@@ -556,51 +563,25 @@
 
   <!-- LIBRARY PAGE -->
   <div class="page" id="page-library">
-    <!-- Day type management -->
-    <div class="card mb10">
-      <div class="card-title">Day Types</div>
-      <div id="day-types-list" style="margin-bottom:10px"></div>
-      <div style="display:grid;grid-template-columns:1fr 80px 34px;gap:6px;align-items:center">
-        <input type="text" id="new-day-label" placeholder="Day name (e.g. Push)…">
-        <input type="color" id="new-day-color" value="#b45309" style="padding:6px 4px;height:44px;border-radius:10px;cursor:pointer">
-        <button class="btn btn-primary" onclick="addDayType()" style="padding:12px 0;font-size:18px">+</button>
-      </div>
-    </div>
-    <!-- Add exercise -->
     <div class="card mb10">
       <div class="card-title">Add Exercise</div>
-      <div class="row2 mb8">
-        <input type="text" id="new-ex-name" placeholder="Exercise name…">
-        <select id="new-ex-day"></select>
-      </div>
-      <div class="row2 mb10">
-        <div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:700">Primary Muscle</div>
-          <select id="new-ex-primary"><option value="">— None —</option></select>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:700">Secondary Muscle</div>
-          <select id="new-ex-secondary"><option value="">— None —</option></select>
-        </div>
+      <div class="mb8"><input type="text" id="new-ex-name" placeholder="Exercise name…"></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:700">Muscles Worked</div>
+      <div id="new-ex-muscles-tags" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;min-height:28px"></div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
+        <select id="new-ex-muscle-pick" style="flex:1;height:40px"></select>
+        <button onclick="newExAddMuscle()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 14px;height:40px;font-size:15px;font-weight:700;cursor:pointer;flex-shrink:0">+</button>
+        <button onclick="newExAddCustomMuscle()" style="background:var(--card2);color:var(--muted);border:none;border-radius:8px;padding:0 10px;height:40px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">+ New</button>
       </div>
       <button class="btn btn-primary" onclick="addExercise()" style="font-size:14px;padding:10px">+ Add to Library</button>
     </div>
-    <div id="library-content"></div>
-  </div>
-
-  <!-- TIMER BAR -->
-  <div id="timer-bar">
-    <div id="timer-display">0:00</div>
-    <button class="timer-btn primary" id="timer-playpause" onclick="timerToggle()" title="Start / Stop">▶</button>
-    <button class="timer-btn" onclick="timerReset()" title="Reset">↺</button>
-    <div id="timer-presets">
-      <button class="preset-btn" onclick="timerSetCountdown(60)">1m</button>
-      <button class="preset-btn" onclick="timerSetCountdown(90)">90s</button>
-      <button class="preset-btn" onclick="timerSetCountdown(120)">2m</button>
-      <button class="preset-btn" onclick="timerSetCountdown(180)">3m</button>
+    <div class="card mb10">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <input type="text" id="lib-search" placeholder="Search exercises…" oninput="renderLibrary()" style="flex:1">
+      </div>
     </div>
-  </div>
-
+    <div id="library-content"></div>
+  </div></div>
 </div>
 
 <!-- EDIT EXERCISE MODAL -->
@@ -609,15 +590,12 @@
     <button class="modal-close" onclick="closeEditExModal()">×</button>
     <div class="modal-title">✏️ Edit Exercise</div>
     <div class="mb8"><input type="text" id="edit-ex-name" placeholder="Exercise name…"></div>
-    <div class="row2 mb10">
-      <div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:700">Primary Muscle</div>
-        <select id="edit-ex-primary"><option value="">— None —</option></select>
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:700">Secondary Muscle</div>
-        <select id="edit-ex-secondary"><option value="">— None —</option></select>
-      </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:700">Muscles Worked</div>
+    <div id="edit-ex-muscles-tags" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;min-height:28px"></div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center">
+      <select id="edit-ex-muscle-pick" style="flex:1;height:40px"></select>
+      <button onclick="editExAddMuscle()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 14px;height:40px;font-size:15px;font-weight:700;cursor:pointer;flex-shrink:0">+</button>
+      <button onclick="editExAddCustomMuscle()" style="background:var(--card2);color:var(--muted);border:none;border-radius:8px;padding:0 10px;height:40px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">+ New</button>
     </div>
     <button class="btn btn-primary" onclick="saveEditEx()">💾 Save</button>
   </div>
@@ -641,28 +619,50 @@
 </div>
 
 <!-- CUSTOM CONFIRM MODAL -->
-<div class="modal-overlay" id="confirm-modal" style="z-index:200">
-  <div class="modal" style="border-radius:16px;padding:22px 18px 22px;max-height:unset">
-    <div id="confirm-msg" style="font-size:16px;font-weight:700;margin-bottom:18px;line-height:1.4"></div>
-    <div style="display:flex;gap:10px">
-      <button class="btn btn-ghost" style="flex:1" id="confirm-no">Cancel</button>
-      <button class="btn btn-primary" style="flex:1;background:#c0392b" id="confirm-yes">Delete</button>
-    </div>
-  </div>
-</div>
+
 
 <div id="toast"></div>
 
+
 <script>
+// ─── Core helpers ─────────────────────────────────────────────────────────────
+function esc(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+
+// ─── Utility helpers ──────────────────────────────────────────────────────────
+function toast(msg, duration) {
+  const el = document.getElementById("toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = "block";
+  setTimeout(() => { el.style.display = "none"; }, duration || 2500);
+}
+
+function customConfirm(msg, onOk, onCancel) {
+  const overlay = document.getElementById("confirm-overlay");
+  const msgEl   = document.getElementById("confirm-msg");
+  const okBtn   = document.getElementById("confirm-ok");
+  const cancelBtn = document.getElementById("confirm-cancel");
+  if (!overlay) { if (confirm(msg)) onOk(); else if (onCancel) onCancel(); return; }
+  msgEl.textContent = msg;
+  overlay.classList.add("show");
+  const cleanup = () => overlay.classList.remove("show");
+  okBtn.onclick     = () => { cleanup(); onOk(); };
+  cancelBtn.onclick = () => { cleanup(); if (onCancel) onCancel(); };
+}
+
+
+
 // ─── State ────────────────────────────────────────────────────────────────────
-// Default day types — user can add/remove/rename
-const DEFAULT_DAY_TYPES = [
-  { id: "UPPER",    label: "Upper",     color: "#1565c0" },
-  { id: "LOWER",    label: "Lower",     color: "#2e7d32" },
-  { id: "FULLBODY", label: "Full Body", color: "#6a1b9a" },
-  { id: "PUSH",     label: "Push",      color: "#b45309" },
-  { id: "PULL",     label: "Pull",      color: "#0e7490" },
-];
+// Default routine tags
+const DEFAULT_TAGS = ["Upper","Lower","Full Body","Push","Pull","Legs","Arms","Cardio"];
 
 // All trackable muscles
 const ALL_MUSCLES = [
@@ -683,64 +683,64 @@ const DEFAULT_MUSCLE_TARGETS = {
 // Default exercise library: { dayId: [{ name, primary, secondary }] }
 const DEFAULT_LIBRARY = {
   UPPER:    [
-    {name:"Bench Press",primary:"Chest",secondary:"Triceps"},
-    {name:"Incline Bench Press",primary:"Chest",secondary:"Front Delts"},
-    {name:"Overhead Press",primary:"Front Delts",secondary:"Triceps"},
-    {name:"Pull-Ups",primary:"Lats",secondary:"Biceps"},
-    {name:"Lat Pulldown",primary:"Lats",secondary:"Biceps"},
-    {name:"Barbell Row",primary:"Rhomboids",secondary:"Biceps"},
-    {name:"Cable Row",primary:"Rhomboids",secondary:"Biceps"},
-    {name:"Dumbbell Fly",primary:"Chest",secondary:"Front Delts"},
-    {name:"Tricep Pushdown",primary:"Triceps",secondary:""},
-    {name:"Skull Crushers",primary:"Triceps",secondary:""},
-    {name:"Bicep Curl",primary:"Biceps",secondary:""},
-    {name:"Hammer Curl",primary:"Biceps",secondary:"Forearms"},
-    {name:"Face Pull",primary:"Rear Delts",secondary:"Traps"},
-    {name:"Lateral Raise",primary:"Side Delts",secondary:""},
-    {name:"Chest Dip",primary:"Chest",secondary:"Triceps"},
+    {name:"Bench Press",muscles:["Chest","Triceps"]},
+    {name:"Incline Bench Press",muscles:["Chest","Front Delts"]},
+    {name:"Overhead Press",muscles:["Front Delts","Triceps"]},
+    {name:"Pull-Ups",muscles:["Lats","Biceps"]},
+    {name:"Lat Pulldown",muscles:["Lats","Biceps"]},
+    {name:"Barbell Row",muscles:["Rhomboids","Biceps"]},
+    {name:"Cable Row",muscles:["Rhomboids","Biceps"]},
+    {name:"Dumbbell Fly",muscles:["Chest","Front Delts"]},
+    {name:"Tricep Pushdown",muscles:["Triceps"]},
+    {name:"Skull Crushers",muscles:["Triceps"]},
+    {name:"Bicep Curl",muscles:["Biceps"]},
+    {name:"Hammer Curl",muscles:["Biceps","Forearms"]},
+    {name:"Face Pull",muscles:["Rear Delts","Traps"]},
+    {name:"Lateral Raise",muscles:["Side Delts"]},
+    {name:"Chest Dip",muscles:["Chest","Triceps"]},
   ],
   LOWER:    [
-    {name:"Squat",primary:"Quads",secondary:"Glutes"},
-    {name:"Front Squat",primary:"Quads",secondary:""},
-    {name:"Romanian Deadlift",primary:"Hamstrings",secondary:"Glutes"},
-    {name:"Leg Press",primary:"Quads",secondary:"Glutes"},
-    {name:"Leg Curl",primary:"Hamstrings",secondary:""},
-    {name:"Leg Extension",primary:"Quads",secondary:""},
-    {name:"Calf Raise",primary:"Calves",secondary:""},
-    {name:"Hip Thrust",primary:"Glutes",secondary:"Hamstrings"},
-    {name:"Bulgarian Split Squat",primary:"Quads",secondary:"Glutes"},
-    {name:"Walking Lunge",primary:"Quads",secondary:"Glutes"},
-    {name:"Hack Squat",primary:"Quads",secondary:""},
-    {name:"Sumo Deadlift",primary:"Glutes",secondary:"Hamstrings"},
+    {name:"Squat",muscles:["Quads","Glutes"]},
+    {name:"Front Squat",muscles:["Quads"]},
+    {name:"Romanian Deadlift",muscles:["Hamstrings","Glutes"]},
+    {name:"Leg Press",muscles:["Quads","Glutes"]},
+    {name:"Leg Curl",muscles:["Hamstrings"]},
+    {name:"Leg Extension",muscles:["Quads"]},
+    {name:"Calf Raise",muscles:["Calves"]},
+    {name:"Hip Thrust",muscles:["Glutes","Hamstrings"]},
+    {name:"Bulgarian Split Squat",muscles:["Quads","Glutes"]},
+    {name:"Walking Lunge",muscles:["Quads","Glutes"]},
+    {name:"Hack Squat",muscles:["Quads"]},
+    {name:"Sumo Deadlift",muscles:["Glutes","Hamstrings"]},
   ],
   FULLBODY: [
-    {name:"Deadlift",primary:"Erector Spinae",secondary:"Hamstrings"},
-    {name:"Power Clean",primary:"Traps",secondary:"Quads"},
-    {name:"Thruster",primary:"Quads",secondary:"Front Delts"},
-    {name:"Kettlebell Swing",primary:"Glutes",secondary:"Hamstrings"},
-    {name:"Farmers Carry",primary:"Traps",secondary:"Forearms"},
-    {name:"Arnold Press",primary:"Front Delts",secondary:"Side Delts"},
-    {name:"Goblet Squat",primary:"Quads",secondary:"Glutes"},
+    {name:"Deadlift",muscles:["Erector Spinae","Hamstrings"]},
+    {name:"Power Clean",muscles:["Traps","Quads"]},
+    {name:"Thruster",muscles:["Quads","Front Delts"]},
+    {name:"Kettlebell Swing",muscles:["Glutes","Hamstrings"]},
+    {name:"Farmers Carry",muscles:["Traps","Forearms"]},
+    {name:"Arnold Press",muscles:["Front Delts","Side Delts"]},
+    {name:"Goblet Squat",muscles:["Quads","Glutes"]},
   ],
   PUSH: [
-    {name:"Bench Press",primary:"Chest",secondary:"Triceps"},
-    {name:"Incline Bench Press",primary:"Chest",secondary:"Front Delts"},
-    {name:"Overhead Press",primary:"Front Delts",secondary:"Triceps"},
-    {name:"Dumbbell Fly",primary:"Chest",secondary:"Front Delts"},
-    {name:"Tricep Pushdown",primary:"Triceps",secondary:""},
-    {name:"Skull Crushers",primary:"Triceps",secondary:""},
-    {name:"Lateral Raise",primary:"Side Delts",secondary:""},
-    {name:"Chest Dip",primary:"Chest",secondary:"Triceps"},
+    {name:"Bench Press",muscles:["Chest","Triceps"]},
+    {name:"Incline Bench Press",muscles:["Chest","Front Delts"]},
+    {name:"Overhead Press",muscles:["Front Delts","Triceps"]},
+    {name:"Dumbbell Fly",muscles:["Chest","Front Delts"]},
+    {name:"Tricep Pushdown",muscles:["Triceps"]},
+    {name:"Skull Crushers",muscles:["Triceps"]},
+    {name:"Lateral Raise",muscles:["Side Delts"]},
+    {name:"Chest Dip",muscles:["Chest","Triceps"]},
   ],
   PULL: [
-    {name:"Pull-Ups",primary:"Lats",secondary:"Biceps"},
-    {name:"Lat Pulldown",primary:"Lats",secondary:"Biceps"},
-    {name:"Barbell Row",primary:"Rhomboids",secondary:"Biceps"},
-    {name:"Cable Row",primary:"Rhomboids",secondary:"Biceps"},
-    {name:"Bicep Curl",primary:"Biceps",secondary:""},
-    {name:"Hammer Curl",primary:"Biceps",secondary:"Forearms"},
-    {name:"Face Pull",primary:"Rear Delts",secondary:"Traps"},
-    {name:"T-Bar Row",primary:"Traps",secondary:"Rear Delts"},
+    {name:"Pull-Ups",muscles:["Lats","Biceps"]},
+    {name:"Lat Pulldown",muscles:["Lats","Biceps"]},
+    {name:"Barbell Row",muscles:["Rhomboids","Biceps"]},
+    {name:"Cable Row",muscles:["Rhomboids","Biceps"]},
+    {name:"Bicep Curl",muscles:["Biceps"]},
+    {name:"Hammer Curl",muscles:["Biceps","Forearms"]},
+    {name:"Face Pull",muscles:["Rear Delts","Traps"]},
+    {name:"T-Bar Row",muscles:["Traps","Rear Delts"]},
   ],
 };
 
@@ -748,49 +748,76 @@ let state = {
   clients: [],
   activeClientId: null,
   logs: [],
-  library: JSON.parse(JSON.stringify(DEFAULT_LIBRARY)), // { dayId: [{name,primary,secondary}] }
-  dayTypes: JSON.parse(JSON.stringify(DEFAULT_DAY_TYPES)), // [{id,label,color}]
-  exMeta: {}, // { exerciseName: { primary, secondary } } — flat lookup
+  library: [],            // flat array of {name, muscles:[]}
+  routineTags: JSON.parse(JSON.stringify(DEFAULT_TAGS)), // available tags for routines
+  exMeta: {},             // { exerciseName: { muscles: [] } }
+  customMuscles: [],      // user-added muscle names
   muscleTargets: {}, // overrides: { clientId_muscle: number }
   routines: [],
   scriptUrl: localStorage.getItem("gym_script_url") || "",
   editId: null,
   sets: [],
   chartInstance: null,
+  chartInstanceVol: null,
   loadedRoutine: null,
   sessionDone: {},
   sessionOpenIdx: null,
+  sessionInputs: {}, // { "ei-si": {r, w} } — persists across re-renders
+  loadedRoutineSnapshot: null, // JSON snapshot of exercises at load time
   currentWorkoutSessionId: null,
   currentWorkoutWeekLabel: null,
   editRoutineId: null,
   rbuilderExercises: [],
 };
 
-// Dynamic helpers that depend on state.dayTypes
-const DAY_LABELS = () => Object.fromEntries(state.dayTypes.map(d => [d.id, d.label]));
-const DAY_COLOR  = () => Object.fromEntries(state.dayTypes.map(d => [d.id, d.color]));
-const dayLabel = id => { const d = state.dayTypes.find(d=>d.id===id); return d ? d.label : id; };
-const dayColor = id => { const d = state.dayTypes.find(d=>d.id===id); return d ? d.color : "#555"; };
+// Tag color helper — simple hash-based color for any tag string
+function tagColor(tag) {
+  const colors = ["#1565c0","#2e7d32","#6a1b9a","#b45309","#0e7490","#7b3f00","#1a5276","#4a235a"];
+  let h = 0; for (let i=0; i<tag.length; i++) h = (h*31+tag.charCodeAt(i)) & 0xffff;
+  return colors[h % colors.length];
+}
 
 
-function dayBadge(dayId) {
-  const label = dayLabel(dayId);
-  const color = dayColor(dayId);
-  // Use predefined classes for known days, inline style for custom
-  const known = ["UPPER","LOWER","FULLBODY","PUSH","PULL"];
-  if (known.includes(dayId)) return `<span class="badge ${dayId}">${label}</span>`;
-  return `<span class="badge" style="background:${color};color:#fff">${label}</span>`;
+// Render tag pills for a routine (tags is array of strings)
+function tagPills(tags) {
+  if (!tags || !tags.length) return '<span style="color:var(--muted);font-size:11px">No tags</span>';
+  return tags.map(t => {
+    const c = tagColor(t);
+    return '<span style="background:' + c + ';color:#fff;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;display:inline-block">' + esc(t) + '</span>';
+  }).join(" ");
+}
+// Legacy compat — some history entries have a .day string field
+// Legacy stub — dayLabel removed, routines now use tags
+function dayLabel(x) { return x || ""; }
+
+function dayBadge(day) {
+  if (!day) return "";
+  const c = tagColor(day);
+  return '<span style="background:' + c + ';color:#fff;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;display:inline-block">' + esc(day) + '</span>';
 }
 // Build exMeta from library
 function rebuildExMeta() {
   state.exMeta = {};
-  Object.values(state.library).forEach(exList => {
-    exList.forEach(ex => {
-      if (ex && ex.name) {
-        state.exMeta[ex.name] = { primary: ex.primary||"", secondary: ex.secondary||"" };
-      }
-    });
+  (Array.isArray(state.library) ? state.library : Object.values(state.library).flat()).forEach(ex => {
+    if (!ex || !ex.name) return;
+    if (!ex.muscles) ex.muscles = [ex.primary, ex.secondary].filter(Boolean);
+    state.exMeta[ex.name] = { muscles: ex.muscles || [] };
   });
+}
+
+// Get display string for an exercise's muscles
+function exMuscleStr(exName) {
+  const m = state.exMeta[exName] || {};
+  return (m.muscles || []).join(" · ");
+}
+
+// Add a custom muscle globally
+function addCustomMuscle(name) {
+  const n = name.trim();
+  if (!n || state.customMuscles.includes(n) || ALL_MUSCLES.includes(n)) return false;
+  state.customMuscles.push(n);
+  persist();
+  return true;
 }
 
 // Get exercise names for a day (backwards-compatible: supports old string arrays)
@@ -833,51 +860,100 @@ function loadLocal() {
     state.clients  = d.clients  || [];
     state.routines = d.routines || [];
     state.activeClientId = d.activeClientId !== undefined ? d.activeClientId : null;
-    state.dayTypes = d.dayTypes || JSON.parse(JSON.stringify(DEFAULT_DAY_TYPES));
     state.muscleTargets = d.muscleTargets || {};
-    // Load library, migrating old string arrays to object arrays
-    const rawLib = d.library || JSON.parse(JSON.stringify(DEFAULT_LIBRARY));
-    state.library = {};
-    Object.entries(rawLib).forEach(([k, arr]) => {
-      state.library[k] = arr.map(e => typeof e === "string" ? {name:e,primary:"",secondary:""} : e);
-    });
-    // Ensure all default day types exist in library
-    state.dayTypes.forEach(dt => {
-      if (!state.library[dt.id]) state.library[dt.id] = [];
-    });
+    state.customMuscles = d.customMuscles || [];
+    state.routineTags   = d.routineTags   || JSON.parse(JSON.stringify(DEFAULT_TAGS));
+    // Migrate old day-keyed library OR load flat library
+    if (Array.isArray(d.library)) {
+      // Already flat
+      state.library = d.library.map(e => typeof e === "string" ? {name:e,muscles:[]} : e);
+    } else if (d.library && typeof d.library === "object") {
+      // Old format: { UPPER: [...], LOWER: [...] } — flatten + deduplicate
+      const seen = new Set();
+      state.library = [];
+      Object.values(d.library).forEach(arr => {
+        arr.forEach(e => {
+          const obj = typeof e === "string" ? {name:e,muscles:[]} : {
+            name: e.name,
+            muscles: e.muscles || [e.primary, e.secondary].filter(Boolean)
+          };
+          if (obj.name && !seen.has(obj.name)) {
+            seen.add(obj.name);
+            state.library.push(obj);
+          }
+        });
+      });
+    } else {
+      state.library = buildDefaultFlatLibrary();
+    }
   } else {
-    // ensure library entries are objects
-    Object.keys(state.library).forEach(k => {
-      state.library[k] = state.library[k].map(e => typeof e === "string" ? {name:e,primary:"",secondary:""} : e);
-    });
+    state.library = buildDefaultFlatLibrary();
   }
   rebuildExMeta();
+  const sessionCache = localStorage.getItem("gym_active_session");
+  if (sessionCache) {
+    try {
+      const s = JSON.parse(sessionCache);
+      state.loadedRoutine           = s.loadedRoutine           || null;
+      state.sessionDone             = s.sessionDone             || {};
+      state.sessionInputs           = s.sessionInputs           || {};
+      state.currentWorkoutSessionId = s.currentWorkoutSessionId || null;
+      state.currentWorkoutWeekLabel = s.currentWorkoutWeekLabel || null;
+    } catch {}
+  }
+}
+
+function buildDefaultFlatLibrary() {
+  const seen = new Set();
+  const flat = [];
+  Object.values(DEFAULT_LIBRARY).forEach(arr => {
+    arr.forEach(e => {
+      if (!seen.has(e.name)) {
+        seen.add(e.name);
+        flat.push({ name: e.name, muscles: e.muscles || [] });
+      }
+    });
+  });
+  return flat;
 }
 
 function persist() {
   localStorage.setItem("gym_data_v2", JSON.stringify({
     logs: state.logs,
     library: state.library,
-    dayTypes: state.dayTypes,
+    routineTags: state.routineTags,
     clients: state.clients,
     routines: state.routines,
     activeClientId: state.activeClientId,
     muscleTargets: state.muscleTargets,
+    customMuscles: state.customMuscles,
   }));
+  // Persist active session separately so it survives page close
+  if (state.loadedRoutine) {
+    localStorage.setItem("gym_active_session", JSON.stringify({
+      loadedRoutine: state.loadedRoutine,
+      sessionDone: state.sessionDone,
+      sessionInputs: state.sessionInputs,
+      currentWorkoutSessionId: state.currentWorkoutSessionId,
+      currentWorkoutWeekLabel: state.currentWorkoutWeekLabel,
+    }));
+  } else {
+    localStorage.removeItem("gym_active_session");
+  }
 }
 
 function renderAll() {
   updateClientPill();
-  populateDaySelects();
   populateMuscleDropdowns();
+  populateTagPicker();
   renderExerciseDropdown();
   renderProgExerciseDropdown();
   renderRoutineProgressDropdown();
   renderHistory();
   renderLibrary();
   renderRoutines();
-  // render muscles if that mode is active
   if (progMode === "muscles") renderMuscleVolume();
+  if (state.loadedRoutine) renderSessionView();
 }
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
@@ -923,7 +999,7 @@ function showSetup() {
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────
-const READ_ACTIONS = new Set(["getLogs","getLibrary","getClients","getRoutines","getDayTypes","getMuscleTargets","getAll"]);
+const READ_ACTIONS = new Set(["getLogs","getLibrary","getClients","getRoutines","getRoutineTags","getMuscleTargets","getAll"]);
 
 async function fetchApi(url, action, data, id) {
   if (READ_ACTIONS.has(action)) {
@@ -961,16 +1037,31 @@ async function syncNow() {
     const res = await fetchApi(state.scriptUrl, "getAll");
     if (res.error) throw new Error(res.error);
     if (res.logs)          state.logs    = res.logs;
-    if (res.library)       { 
-      // migrate old string arrays
-      Object.keys(res.library).forEach(k => {
-        res.library[k] = res.library[k].map(e => typeof e==="string" ? {name:e,primary:"",secondary:""} : e);
-      });
-      state.library = res.library;
+    if (res.library) {
+      if (Array.isArray(res.library)) {
+        // Flat array (new format)
+        state.library = res.library.map(e => typeof e === "string" ? {name:e,muscles:[]} : {
+          name: e.name,
+          muscles: e.muscles || [e.primary, e.secondary].filter(Boolean)
+        });
+      } else if (typeof res.library === "object") {
+        // Old day-keyed dict — flatten and deduplicate
+        const seen = new Set();
+        state.library = [];
+        Object.values(res.library).forEach(arr => {
+          (arr || []).forEach(e => {
+            const obj = typeof e === "string" ? {name:e,muscles:[]} : {
+              name: e.name,
+              muscles: e.muscles || [e.primary, e.secondary].filter(Boolean)
+            };
+            if (obj.name && !seen.has(obj.name)) { seen.add(obj.name); state.library.push(obj); }
+          });
+        });
+      }
     }
     if (res.clients)       state.clients       = res.clients;
     if (res.routines)      state.routines      = res.routines;
-    if (res.dayTypes  && res.dayTypes.length)  state.dayTypes      = res.dayTypes;
+    if (res.routineTags && res.routineTags.length) state.routineTags = res.routineTags;
     if (res.muscleTargets) state.muscleTargets = res.muscleTargets;
     rebuildExMeta();
     persist();
@@ -1066,7 +1157,7 @@ function addClient() {
 
 function deleteClient(id) {
   const c = state.clients.find(c => c.id === id);
-  customConfirm(`Delete client "${c?.name}"?\nTheir logs will also be deleted.`, () => {
+  customConfirm(`Delete "${c?.name}"? Their logs go too.`, () => {
     state.clients = state.clients.filter(c => c.id !== id);
     state.logs    = state.logs.filter(l => l.clientId !== id);
     if (state.activeClientId === id) state.activeClientId = null;
@@ -1080,6 +1171,43 @@ function deleteClient(id) {
 }
 
 // ─── ROUTINES ─────────────────────────────────────────────────────────────────
+// Compute muscle set counts from a saved routine object
+function routineMuscleCounts(routine) {
+  const counts = {};
+  (routine.exercises || []).forEach(ex => {
+    const meta = state.exMeta[ex.name] || {};
+    const muscles = meta.muscles || [meta.primary, meta.secondary].filter(Boolean);
+    const setCount = ex.sets ? ex.sets.length : 0;
+    muscles.forEach((m, i) => {
+      if (!m) return;
+      if (!counts[m]) counts[m] = { primary: 0, secondary: 0 };
+      if (i === 0) counts[m].primary += setCount;
+      else         counts[m].secondary += setCount;
+    });
+  });
+  return counts;
+}
+
+// Render a compact muscle pill row from counts object
+function musclePillsHtml(counts) {
+  if (!Object.keys(counts).length) return "";
+  const sorted = Object.entries(counts)
+    .sort((a,b) => (b[1].primary+b[1].secondary) - (a[1].primary+a[1].secondary));
+  let html = '<div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px 13px 10px">';
+  sorted.forEach(([muscle, c]) => {
+    const total = c.primary + c.secondary;
+    // Only show breakdown if both primary and secondary exist
+    const label = (c.primary > 0 && c.secondary > 0)
+      ? muscle + " " + c.primary + "p+" + c.secondary + "s"
+      : muscle + " " + total;
+    const bg  = total >= 9 ? "#166534" : total >= 6 ? "#1e3a5f" : "var(--card2)";
+    const col = total >= 9 ? "var(--green)" : total >= 6 ? "#93c5fd" : "var(--muted)";
+    html += '<span style="background:' + bg + ';color:' + col + ';border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700">' + esc(label) + '</span>';
+  });
+  html += "</div>";
+  return html;
+}
+
 function renderRoutines() {
   const el = document.getElementById("routines-content");
   const mine = state.routines.filter(r => r.clientId === state.activeClientId);
@@ -1093,7 +1221,10 @@ function renderRoutines() {
       <div class="routine-header">
         <div>
           <div class="routine-name">${esc(r.name)}</div>
-          <div class="routine-day">${dayBadge(r.day)} &nbsp;${r.exercises.length} exercise${r.exercises.length!==1?"s":""}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center">
+            ${tagPills(r.tags || (r.day ? [r.day] : []))}
+            <span style="color:var(--muted);font-size:11px;margin-left:4px">${r.exercises.length} exercise${r.exercises.length!==1?"s":""}</span>
+          </div>
         </div>
         <div class="routine-actions">
           <button class="load-btn" onclick="loadRoutineToLog('${r.id}')">▶ Load</button>
@@ -1106,6 +1237,11 @@ function renderRoutines() {
       const setSummary = ex.sets.map((s,i) => `Set ${i+1}: ${s.r} reps @ ${s.w>0?s.w+"kg":"BW"}`).join("  ·  ");
       html += `<div class="routine-ex-row"><div class="routine-ex-name">${esc(ex.name)}</div><div class="routine-ex-sets">${setSummary}</div></div>`;
     });
+    const muscleCounts = routineMuscleCounts(r);
+    const pillsHtml = musclePillsHtml(muscleCounts);
+    if (pillsHtml) {
+      html += `<div style="border-top:1px solid var(--border)">${pillsHtml}</div>`;
+    }
     html += `</div></div>`;
   });
   el.innerHTML = html;
@@ -1114,23 +1250,18 @@ function renderRoutines() {
 function openRoutineModal(editId) {
   state.editRoutineId = editId || null;
   state.rbuilderExercises = [];
+  rbuilderTags = [];
 
   const modal = document.getElementById("routine-modal");
   const title = document.getElementById("routine-modal-title");
   document.getElementById("rname").value = "";
-
-  // Ensure day select is populated before setting a value
-  populateDaySelects();
-  const firstDayId = state.dayTypes[0]?.id || "UPPER";
-  document.getElementById("rday").value = firstDayId;
 
   if (editId) {
     const r = state.routines.find(r => r.id === editId);
     if (r) {
       title.textContent = "✏️ Edit Routine";
       document.getElementById("rname").value = r.name;
-      document.getElementById("rday").value  = r.day;
-      // Migrate old string-based exercise names to objects
+      rbuilderTags = r.tags ? [...r.tags] : (r.day ? [r.day] : []);
       state.rbuilderExercises = r.exercises.map(ex => ({
         name: typeof ex === "string" ? ex : ex.name,
         sets: (ex.sets || []).map(s => ({ r: String(s.r), w: String(s.w) }))
@@ -1140,6 +1271,8 @@ function openRoutineModal(editId) {
     title.textContent = "📋 New Routine";
   }
 
+  populateTagPicker();
+  renderRbuilderTagPills();
   populateRbuilderExDropdown();
   renderRbuilderExercises();
   modal.classList.add("show");
@@ -1150,12 +1283,13 @@ function closeRoutineModal() {
 }
 
 function populateRbuilderExDropdown() {
-  const day = document.getElementById("rday").value;
   const sel = document.getElementById("radd-ex");
-  sel.innerHTML = "";
-  exNamesForDay(day).forEach(name => {
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Select exercise —</option>';
+  const sorted = [...state.library].sort((a,b) => a.name.localeCompare(b.name));
+  sorted.forEach(ex => {
     const o = document.createElement("option");
-    o.value = name; o.textContent = name;
+    o.value = ex.name; o.textContent = ex.name;
     sel.appendChild(o);
   });
 }
@@ -1200,9 +1334,9 @@ function renderRbuilderExercises() {
     ex.sets.forEach((s, si) => {
       html += `<div class="rbuilder-set">
         <input type="number" inputmode="numeric" placeholder="8" value="${s.r}"
-          oninput="state.rbuilderExercises[${ei}].sets[${si}].r=this.value">
+          oninput="state.rbuilderExercises[${ei}].sets[${si}].r=this.value;renderRbuilderMuscleSummary()">
         <input type="number" inputmode="decimal" placeholder="0" value="${s.w}"
-          oninput="state.rbuilderExercises[${ei}].sets[${si}].w=this.value">
+          oninput="state.rbuilderExercises[${ei}].sets[${si}].w=this.value;renderRbuilderMuscleSummary()">
         <input type="text" placeholder="(opt)" value="${s.note||""}"
           oninput="state.rbuilderExercises[${ei}].sets[${si}].note=this.value" style="font-size:12px;padding:10px 8px;">
         <button class="btn-del-set" onclick="rbuilderRemoveSet(${ei},${si})" style="height:40px">×</button>
@@ -1212,11 +1346,42 @@ function renderRbuilderExercises() {
     </div>`;
   });
   el.innerHTML = html;
+  renderRbuilderMuscleSummary();
+}
+
+function renderRbuilderMuscleSummary() {
+  const el = document.getElementById("rbuilder-muscle-summary");
+  if (!el) return;
+  if (!state.rbuilderExercises.length) { el.innerHTML = ""; return; }
+  const counts = {};
+  state.rbuilderExercises.forEach(ex => {
+    const meta = state.exMeta[ex.name] || {};
+    const muscles = meta.muscles || [meta.primary, meta.secondary].filter(Boolean);
+    // Count actual planned sets, not just exercises
+    const setCount = ex.sets ? ex.sets.filter(s => s.r || s.w).length || ex.sets.length : 1;
+    muscles.forEach((m, i) => {
+      if (!m) return;
+      if (!counts[m]) counts[m] = { primary: 0, secondary: 0 };
+      if (i === 0) counts[m].primary += setCount;
+      else         counts[m].secondary += setCount;
+    });
+  });
+  if (!Object.keys(counts).length) { el.innerHTML = ""; return; }
+  const sorted = Object.entries(counts).sort((a,b) => (b[1].primary+b[1].secondary) - (a[1].primary+a[1].secondary));
+  let html = '<div style="background:var(--card2);border-radius:10px;padding:10px 12px"><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Muscles in this routine</div><div style="display:flex;flex-wrap:wrap;gap:5px">';
+  sorted.forEach(([muscle, c]) => {
+    const total = c.primary + c.secondary;
+    const label = (c.primary > 0 && c.secondary > 0) ? (muscle + " " + c.primary + "p+" + c.secondary + "s") : (muscle + " x" + total);
+    const bg  = total >= 3 ? "#166534" : total === 2 ? "#1e3a5f" : "var(--card)";
+    const col = total >= 3 ? "var(--green)" : total === 2 ? "#93c5fd" : "var(--muted)";
+    html += '<span style="background:' + bg + ';color:' + col + ';border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700">' + esc(label) + '</span>';
+  });
+  html += "</div></div>";
+  el.innerHTML = html;
 }
 
 function saveRoutine() {
   const name = document.getElementById("rname").value.trim();
-  const day  = document.getElementById("rday").value;
   if (!name) { toast("⚠ Give the routine a name"); return; }
   if (!state.rbuilderExercises.length) { toast("⚠ Add at least one exercise"); return; }
 
@@ -1224,6 +1389,7 @@ function saveRoutine() {
     name: ex.name,
     sets: ex.sets.map(s => ({ r: Number(s.r)||0, w: Number(s.w)||0, note: s.note||"" }))
   }));
+  const tags = [...rbuilderTags];
 
   if (state.editRoutineId) {
     state.routines = state.routines.map(r => r.id === state.editRoutineId
@@ -1246,7 +1412,8 @@ function saveRoutine() {
 }
 
 function deleteRoutine(id) {
-  customConfirm("Delete this routine?", () => {
+  const r = state.routines.find(r => r.id === id);
+  customConfirm(`Delete routine "${r?.name}"?`, () => {
     state.routines = state.routines.filter(r => r.id !== id);
     persist();
     renderRoutines();
@@ -1266,7 +1433,33 @@ function loadRoutineToLog(id) {
   const r = state.routines.find(r => r.id === id);
   if (!r) return;
   state.loadedRoutine = r;
+  state.loadedRoutineSnapshot = JSON.stringify(r.exercises);
   state.sessionDone = {};
+  state.sessionInputs = {};
+
+  // Pre-fill inputs: for each exercise, if planned w/r is 0 or empty,
+  // use the most recent logged sets for that exercise
+  const today = todayStr();
+  r.exercises.forEach((ex, ei) => {
+    const lastLog = clientLogs()
+      .filter(l => l.exercise === ex.name && l.date <= today)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    if (!lastLog) return;
+    ex.sets.forEach((s, si) => {
+      const noPlannedR = !s.r || s.r === 0;
+      const noPlannedW = !s.w || s.w === 0;
+      if (noPlannedR || noPlannedW) {
+        const lastSet = lastLog.sets[si] || lastLog.sets[lastLog.sets.length - 1];
+        if (lastSet) {
+          state.sessionInputs[ei + "-" + si] = {
+            r: noPlannedR ? String(lastSet.r) : String(s.r),
+            w: noPlannedW ? String(lastSet.w) : String(s.w)
+          };
+        }
+      }
+    });
+  });
+
   state.currentWorkoutSessionId = "ws" + Date.now();
   state.currentWorkoutWeekLabel = getWeekLabel(null);
   switchTab("log");
@@ -1274,9 +1467,85 @@ function loadRoutineToLog(id) {
   toast("▶ " + r.name + " loaded");
 }
 
+function endWorkout() {
+  const r = state.loadedRoutine;
+  if (!r) { clearLoadedRoutine(); return; }
+
+  // Build updated exercises from current inputs (use sessionInputs values)
+  const updatedExercises = r.exercises.map((ex, ei) => ({
+    ...ex,
+    sets: ex.sets.map((s, si) => {
+      const saved = (state.sessionInputs || {})[ei + "-" + si] || {};
+      return {
+        r: saved.r !== undefined && saved.r !== "" ? Number(saved.r) : s.r,
+        w: saved.w !== undefined && saved.w !== "" ? Number(saved.w) : s.w,
+        note: s.note || ""
+      };
+    })
+  }));
+
+  const snapshot  = state.loadedRoutineSnapshot;
+  const current   = JSON.stringify(r.exercises);
+  const updated   = JSON.stringify(updatedExercises);
+  const hasStructuralChange = snapshot && current !== snapshot;
+  const hasWeightChange     = snapshot && updated !== snapshot;
+  const hasAnyChange        = hasStructuralChange || hasWeightChange;
+
+  if (!hasAnyChange) {
+    clearLoadedRoutine();
+    return;
+  }
+
+  // Build a short summary of what changed
+  const lines = [];
+  const origExs = JSON.parse(snapshot);
+  updatedExercises.forEach((ex, ei) => {
+    const orig = origExs[ei];
+    if (!orig) { lines.push("+ " + ex.name + " (new)"); return; }
+    if (ex.sets.length !== orig.sets.length) {
+      lines.push(ex.name + ": " + orig.sets.length + " → " + ex.sets.length + " sets");
+    } else {
+      const wChanged = ex.sets.some((s, si) => s.w !== orig.sets[si]?.w);
+      const rChanged = ex.sets.some((s, si) => s.r !== orig.sets[si]?.r);
+      if (wChanged || rChanged) lines.push(ex.name + ": weights/reps updated");
+    }
+  });
+
+  const summary = lines.length
+    ? lines.slice(0, 3).join("\n") + (lines.length > 3 ? "\n+" + (lines.length-3) + " more" : "")
+    : "Sets or weights changed";
+
+  customConfirm("Save changes to routine \"" + r.name + "\"?\n\n" + summary + "\n\nThis updates it for next time.", () => {
+    // Apply updated sets to the routine
+    const ri = state.routines.findIndex(x => x.id === r.id);
+    if (ri !== -1) {
+      state.routines[ri] = { ...state.routines[ri], exercises: updatedExercises };
+      syncPush("saveRoutines", state.routines);
+      toast("✅ Routine updated");
+    }
+    clearLoadedRoutine();
+  }, () => {
+    // Discard — revert loadedRoutine sets to snapshot before clearing
+    if (snapshot) {
+      const ri = state.routines.findIndex(x => x.id === r.id);
+      if (ri !== -1) state.routines[ri].exercises = JSON.parse(snapshot);
+    }
+    clearLoadedRoutine();
+  });
+}
+
+
+function clearSessionInputs() {
+  state.sessionInputs = {};
+}
+
 function clearLoadedRoutine() {
   state.loadedRoutine = null;
   state.sessionDone = {};
+  state.sessionInputs = {};
+  state.currentWorkoutSessionId = null;
+  state.currentWorkoutWeekLabel = null;
+  localStorage.removeItem("gym_active_session");
   document.getElementById("session-view").style.display = "none";
   document.getElementById("free-log-section").style.display = "block";
 }
@@ -1290,8 +1559,8 @@ function renderSessionView() {
 
   document.getElementById("session-name").textContent = "📋 " + r.name;
   const done = Object.keys(state.sessionDone || {}).length;
-  document.getElementById("session-sub").textContent =
-    dayLabel(r.day) + "  ·  " + done + " / " + r.exercises.length + " done";
+  const subEl = document.getElementById("session-sub");
+  subEl.innerHTML = tagPills(r.tags || []) + '  <span style="color:var(--muted)">' + done + " / " + r.exercises.length + " done</span>";
 
   // sync date
   const dateEl = document.getElementById("log-date-session");
@@ -1307,17 +1576,35 @@ function renderSessionView() {
     const best = prev.length ? Math.max(...prev.map(l => maxW(l.sets))) : null;
     const plannedStr = ex.sets.map((s,i) => `${s.r}×${s.w>0?s.w+"kg":"BW"}`).join("  ");
     const exMeta = state.exMeta[ex.name] || {};
-    const muscleTag = [exMeta.primary, exMeta.secondary].filter(Boolean).join(" · ");
+    const muscleTag = (exMeta.muscles || [exMeta.primary, exMeta.secondary].filter(Boolean)).filter(Boolean).join(" · ");
 
     // build set rows html for logging area
     let setRowsHtml = "";
     ex.sets.forEach((s, si) => {
+      const saved   = (state.sessionInputs || {})[(ei+"-"+si)] || {};
+      const rVal    = saved.r !== undefined ? saved.r : (s.r || "");
+      const wVal    = saved.w !== undefined ? saved.w : (s.w || "");
+      const isDoneStyle = isDone ? "opacity:.7;" : "";
+      // Previous set weight for copy button
+      const prevSaved = si > 0 ? ((state.sessionInputs || {})[(ei+"-"+(si-1))] || {}) : null;
+      const prevW   = prevSaved ? (prevSaved.w || "") : "";
+      const showCopy = si > 0 && prevW !== "" && wVal === "";
+      const totalSets = ex.sets.length;
       setRowsHtml += `<div class="set-row" id="srow-${ei}-${si}">
         <div class="set-num">${si+1}</div>
-        <input type="number" inputmode="numeric" placeholder="${s.r||8}" value="${s.r||""}"
-          id="sr-${ei}-${si}" oninput="sessionSetChanged(${ei},${si})">
-        <input type="number" inputmode="decimal" placeholder="${s.w>0?s.w:0}" value="${s.w||""}"
-          id="sw-${ei}-${si}" oninput="sessionSetChanged(${ei},${si})">
+        <input type="number" inputmode="numeric" placeholder="${s.r||8}" value="${rVal}"
+          id="sr-${ei}-${si}"
+          oninput="sessionSetChanged(${ei},${si})"
+          onkeydown="if(event.key==='Enter'||event.key==='Tab'){event.preventDefault();document.getElementById('sw-${ei}-${si}')?.focus();}"
+          style="${isDoneStyle}">
+        <div style="position:relative;flex:1;display:flex;align-items:center">
+          <input type="number" inputmode="decimal" placeholder="${s.w>0?s.w:0}" value="${wVal}"
+            id="sw-${ei}-${si}"
+            oninput="sessionSetChanged(${ei},${si})"
+            onkeydown="if(event.key==='Enter'||event.key==='Tab'){event.preventDefault();const nx=document.getElementById('sr-${ei}-${si+1}');if(nx)nx.focus();else document.getElementById('session-save-${ei}')?.focus();}"
+            style="${isDoneStyle}width:100%">
+          ${showCopy ? `<button onclick="copyPrevWeight(${ei},${si},${prevW})" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:#1e3a5f;border:none;border-radius:6px;color:#93c5fd;font-size:10px;font-weight:700;padding:2px 5px;cursor:pointer;white-space:nowrap">↑${prevW}</button>` : ""}
+        </div>
         <button class="btn-del-set" onclick="sessionDelSet(${ei},${si})">×</button>
       </div>`;
     });
@@ -1341,7 +1628,7 @@ function renderSessionView() {
         <div class="sets-header"><span>#</span><span>Reps</span><span>kg</span><span></span></div>
         <div id="session-sets-${ei}">${setRowsHtml}</div>
         <button class="btn btn-add-set" style="margin-bottom:10px" onclick="sessionAddSet(${ei})">+ Add Set</button>
-        <button class="btn btn-success" onclick="sessionSaveEx(${ei})">${isDone?"✅ Update":"💾 Log Exercise"}</button>
+        <button class="btn btn-success" id="session-save-${ei}" onclick="sessionSaveEx(${ei})">${isDone?"✅ Update":"💾 Log Exercise"}</button>
       </div>
     </div>`;
   });
@@ -1361,8 +1648,33 @@ function toggleSessionEx(ei) {
   }
 }
 
+function copyPrevWeight(ei, si, w) {
+  const wEl = document.getElementById("sw-" + ei + "-" + si);
+  if (!wEl) return;
+  wEl.value = w;
+  if (!state.sessionInputs) state.sessionInputs = {};
+  state.sessionInputs[ei + "-" + si] = {
+    r: (state.sessionInputs[ei + "-" + si] || {}).r || "",
+    w: String(w)
+  };
+  renderSessionView();
+  // Re-open and re-focus reps for this set
+  state.sessionOpenIdx = ei;
+  setTimeout(() => {
+    const rEl = document.getElementById("sr-" + ei + "-" + si);
+    if (rEl) rEl.focus();
+  }, 50);
+}
+
+
 function sessionSetChanged(ei, si) {
-  // values are read directly from inputs at save time — nothing to do
+  if (!state.sessionInputs) state.sessionInputs = {};
+  const rEl = document.getElementById("sr-" + ei + "-" + si);
+  const wEl = document.getElementById("sw-" + ei + "-" + si);
+  state.sessionInputs[ei + "-" + si] = {
+    r: rEl ? rEl.value : "",
+    w: wEl ? wEl.value : ""
+  };
 }
 
 function sessionAddSet(ei) {
@@ -1388,9 +1700,8 @@ async function sessionSaveEx(ei) {
   if (!r) return;
   const ex = r.exercises[ei];
   const date = document.getElementById("log-date-session").value || todayStr();
-  const day  = r.day;
 
-  // collect sets from inputs
+  // Collect sets from current inputs
   const sets = [];
   ex.sets.forEach((s, si) => {
     const rEl = document.getElementById("sr-" + ei + "-" + si);
@@ -1402,87 +1713,163 @@ async function sessionSaveEx(ei) {
 
   if (!sets.length) { toast("⚠ Enter at least one set"); return; }
 
-  const entry = { date, day, exercise: ex.name, sets, clientId: state.activeClientId, workoutSessionId: state.currentWorkoutSessionId, routineName: r.name, weekLabel: state.currentWorkoutWeekLabel };
-  const tempId = Date.now();
-  state.logs.push({ ...entry, id: tempId });
   if (!state.sessionDone) state.sessionDone = {};
-  state.sessionDone[ex.name] = tempId;
+  const existingId = state.sessionDone[ex.name];
 
-  if (state.scriptUrl) {
-    try {
-      const res = await fetchApi(state.scriptUrl, "addLog", entry);
-      if (res.id) {
-        const idx = state.logs.findIndex(l => l.id === tempId);
-        if (idx !== -1) { state.logs[idx].id = res.id; state.sessionDone[ex.name] = res.id; }
+  if (existingId) {
+    // ── UPDATE existing log entry ──────────────────────────────
+    const idx = state.logs.findIndex(l => l.id === existingId);
+    if (idx !== -1) {
+      state.logs[idx] = { ...state.logs[idx], date, sets };
+      persist();
+      toast("✅ " + ex.name + " updated!");
+      if (state.scriptUrl) {
+        try { await fetchApi(state.scriptUrl, "updateLog", state.logs[idx]); setBadge("ok"); }
+        catch { setBadge("err"); }
       }
-      setBadge("ok");
-    } catch { setBadge("err"); }
+    }
+  } else {
+    // ── ADD new log entry ──────────────────────────────────────
+    const entry = { date, exercise: ex.name, sets, clientId: state.activeClientId,
+      workoutSessionId: state.currentWorkoutSessionId,
+      routineName: r.name, weekLabel: state.currentWorkoutWeekLabel };
+    const tempId = Date.now();
+    state.logs.push({ ...entry, id: tempId });
+    state.sessionDone[ex.name] = tempId;
+    persist();
+    toast("✅ " + ex.name + " logged!");
+    if (state.scriptUrl) {
+      try {
+        const res = await fetchApi(state.scriptUrl, "addLog", entry);
+        if (res.id) {
+          const li = state.logs.findIndex(l => l.id === tempId);
+          if (li !== -1) { state.logs[li].id = res.id; state.sessionDone[ex.name] = res.id; }
+        }
+        setBadge("ok");
+      } catch { setBadge("err"); }
+    }
   }
 
-  persist();
-  toast("✅ " + ex.name + " logged!");
-  state.sessionOpenIdx = null;
   renderSessionView();
 }
 
 // ─── LOG tab ──────────────────────────────────────────────────────────────────
 function onDayChange() {
-  document.getElementById("log-exercise").value = "";
+  // Day filtering removed — library is now flat
   renderExerciseDropdown();
-  hideSetsSection();
 }
 
 
 
+// Muscle picker helpers — shared by Add Exercise and Edit Exercise modals
+let newExMuscles  = [];
+let editExMuscles = [];
+
+function allMuscleOptions() {
+  return [...ALL_MUSCLES, ...state.customMuscles];
+}
+
 function populateMuscleDropdowns() {
-  ["new-ex-primary","new-ex-secondary"].forEach(id => {
+  ["new-ex-muscle-pick","edit-ex-muscle-pick"].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    const cur = el.value;
-    el.innerHTML = '<option value="">— None —</option>';
-    ALL_MUSCLES.forEach(m => {
+    el.innerHTML = '<option value="">— Select muscle —</option>';
+    allMuscleOptions().forEach(m => {
       const o = document.createElement("option");
       o.value = m; o.textContent = m;
       el.appendChild(o);
     });
-    el.value = cur;
   });
 }
-function populateDaySelects() {
-  const selects = ["log-day","rday","new-ex-day"];
-  selects.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const cur = el.value;
-    el.innerHTML = "";
-    state.dayTypes.forEach(dt => {
-      const o = document.createElement("option");
-      o.value = dt.id; o.textContent = dt.label;
-      el.appendChild(o);
-    });
-    if (cur && state.dayTypes.find(d=>d.id===cur)) el.value = cur;
-  });
-  // prog-day has "All days" first
-  const pd = document.getElementById("prog-day");
-  if (pd) {
-    const cur = pd.value;
-    pd.innerHTML = '<option value="ALL">All days</option>';
-    state.dayTypes.forEach(dt => {
-      const o = document.createElement("option");
-      o.value = dt.id; o.textContent = dt.label;
-      pd.appendChild(o);
-    });
-    if (cur) pd.value = cur;
+
+function renderMuscleTags(containerId, muscles, onRemove) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = muscles.length
+    ? muscles.map((m, i) => `<span class="muscle-tag">${esc(m)}<button onclick="${onRemove}(${i})" title="Remove">×</button></span>`).join("")
+    : `<span style="font-size:12px;color:var(--muted)">No muscles selected</span>`;
+}
+
+// ── New Exercise muscle helpers
+function newExAddMuscle() {
+  const sel = document.getElementById("new-ex-muscle-pick");
+  const val = sel?.value;
+  if (!val || newExMuscles.includes(val)) return;
+  newExMuscles.push(val);
+  sel.value = "";
+  renderMuscleTags("new-ex-muscles-tags", newExMuscles, "newExRemoveMuscle");
+}
+function newExRemoveMuscle(i) {
+  newExMuscles.splice(i, 1);
+  renderMuscleTags("new-ex-muscles-tags", newExMuscles, "newExRemoveMuscle");
+}
+function newExAddCustomMuscle() {
+  showCustomMuscleInput("new");
+}
+function getNewExMuscles() { return [...newExMuscles]; }
+function resetNewExMuscles() {
+  newExMuscles = [];
+  renderMuscleTags("new-ex-muscles-tags", newExMuscles, "newExRemoveMuscle");
+}
+
+// ── Edit Exercise muscle helpers
+function editExAddMuscle() {
+  const sel = document.getElementById("edit-ex-muscle-pick");
+  const val = sel?.value;
+  if (!val || editExMuscles.includes(val)) return;
+  editExMuscles.push(val);
+  sel.value = "";
+  renderMuscleTags("edit-ex-muscles-tags", editExMuscles, "editExRemoveMuscle");
+}
+function editExRemoveMuscle(i) {
+  editExMuscles.splice(i, 1);
+  renderMuscleTags("edit-ex-muscles-tags", editExMuscles, "editExRemoveMuscle");
+}
+function editExAddCustomMuscle() {
+  showCustomMuscleInput("edit");
+}
+
+let customMuscleInputTarget = null;
+function showCustomMuscleInput(target) {
+  customMuscleInputTarget = target;
+  const el = document.getElementById("custom-muscle-overlay");
+  document.getElementById("custom-muscle-input").value = "";
+  el.classList.add("show");
+  setTimeout(() => document.getElementById("custom-muscle-input").focus(), 50);
+}
+function closeCustomMuscleInput() {
+  document.getElementById("custom-muscle-overlay").classList.remove("show");
+}
+function confirmCustomMuscle() {
+  const val = document.getElementById("custom-muscle-input").value.trim();
+  if (!val) { closeCustomMuscleInput(); return; }
+  addCustomMuscle(val);
+  populateMuscleDropdowns();
+  if (customMuscleInputTarget === "new") {
+    if (!newExMuscles.includes(val)) {
+      newExMuscles.push(val);
+      renderMuscleTags("new-ex-muscles-tags", newExMuscles, "newExRemoveMuscle");
+    }
+  } else {
+    if (!editExMuscles.includes(val)) {
+      editExMuscles.push(val);
+      renderMuscleTags("edit-ex-muscles-tags", editExMuscles, "editExRemoveMuscle");
+    }
   }
+  closeCustomMuscleInput();
+  toast("✅ Custom muscle added: " + val);
 }
+function getEditExMuscles() { return [...editExMuscles]; }
+// populateDaySelects removed — library is now flat, tags are per-routine
 function renderExerciseDropdown() {
-  const day = document.getElementById("log-day").value;
   const sel = document.getElementById("log-exercise");
+  if (!sel) return;
   const cur = sel.value;
   sel.innerHTML = '<option value="">— Select exercise —</option>';
-  exNamesForDay(day).forEach(name => {
+  const sorted = [...state.library].sort((a,b) => a.name.localeCompare(b.name));
+  sorted.forEach(ex => {
     const o = document.createElement("option");
-    o.value = name; o.textContent = name;
+    o.value = ex.name; o.textContent = ex.name;
     sel.appendChild(o);
   });
   if (cur) sel.value = cur;
@@ -1498,7 +1885,7 @@ function onExerciseChange() {
   const banner = document.getElementById("prev-banner");
   banner.style.display = "block";
   const meta = state.exMeta[ex] || {};
-  const muscleStr = [meta.primary, meta.secondary].filter(Boolean).join(" · ");
+  const muscleStr = (meta.muscles || [meta.primary, meta.secondary].filter(Boolean)).filter(Boolean).join(" · ");
   if (best !== null) {
     banner.className = "prev-banner has";
     banner.innerHTML = `✅ Previous best: <b>${best} kg</b>${muscleStr ? `  <span style="opacity:.7;font-size:11px">· ${muscleStr}</span>` : ""}`;
@@ -1575,13 +1962,12 @@ function updateSaveBtn() {
 
 async function saveEntry() {
   const date     = document.getElementById("log-date").value;
-  const day      = document.getElementById("log-day").value;
   const exercise = document.getElementById("log-exercise").value;
   const validSets = state.sets.filter(s => s.r !== "" && s.w !== "")
                                .map(s => ({ r: Number(s.r), w: Number(s.w) }));
   if (!exercise || !validSets.length) return;
 
-  const entry = { date, day, exercise, sets: validSets, clientId: state.activeClientId };
+  const entry = { date, exercise, sets: validSets, clientId: state.activeClientId };
   const btn = document.getElementById("save-btn");
   btn.textContent = "Saving…"; btn.disabled = true;
 
@@ -1630,7 +2016,6 @@ function startEdit(id) {
   if (!entry) return;
   state.editId = id;
   document.getElementById("log-date").value = entry.date;
-  document.getElementById("log-day").value  = entry.day;
   renderExerciseDropdown();
   document.getElementById("log-exercise").value = entry.exercise;
   state.sets = entry.sets.map(s => ({ r: String(s.r), w: String(s.w) }));
@@ -1644,8 +2029,25 @@ function startEdit(id) {
   window.scrollTo(0, 0);
 }
 
+async function deleteSessionEntry(entryId, sid) {
+  const e = state.logs.find(l => l.id === entryId);
+  customConfirm(`Remove ${e?.exercise} from session?`, async () => {
+    state.logs = state.logs.filter(l => l.id !== entryId);
+    persist();
+    historyOpenSessions.add(sid);
+    renderHistory();
+    if (state.scriptUrl) {
+      try { await fetchApi(state.scriptUrl, "deleteLog", null, entryId); setBadge("ok"); }
+      catch { setBadge("err"); }
+    }
+    toast("🗑 Exercise removed from session");
+  });
+}
+
+
 function deleteEntry(id) {
-  customConfirm("Delete this entry?", async () => {
+  const e = state.logs.find(l => l.id === id);
+  customConfirm(`Delete ${e?.exercise} (${e?.date})?`, async () => {
     state.logs = state.logs.filter(l => l.id !== id);
     persist();
     renderHistory();
@@ -1675,7 +2077,7 @@ function setProgMode(mode) {
 function renderProgExerciseDropdown() {
   const sel = document.getElementById("prog-exercise");
   const cur = sel.value;
-  const all = [...new Set(Object.values(state.library).flatMap(arr => arr.map(e => typeof e==="string"?e:e.name)))].sort();
+  const all = [...new Set(state.library.map(e => typeof e==="string"?e:e.name))].sort();
   sel.innerHTML = "";
   all.forEach(ex => {
     const o = document.createElement("option");
@@ -1692,7 +2094,7 @@ function renderRoutineProgressDropdown() {
   const mine = state.routines.filter(r => r.clientId === state.activeClientId);
   mine.forEach(r => {
     const o = document.createElement("option");
-    o.value = r.id; o.textContent = r.name + " (" + dayLabel(r.day) + ")";
+    o.value = r.id; o.textContent = r.name + (r.tags && r.tags.length ? " (" + r.tags.join(", ") + ")" : "");
     sel.appendChild(o);
   });
   if (cur) sel.value = cur;
@@ -1943,10 +2345,13 @@ function renderMuscleVolume() {
 
   // Determine date range
   let start, end, rangeLabel;
-  if (muscleRangeMode === "custom" && muscleCustomStart && muscleCustomEnd) {
+  if (muscleRangeMode === "today") {
+    start = end = todayStr();
+    rangeLabel = "Today";
+  } else if (muscleRangeMode === "custom" && muscleCustomStart && muscleCustomEnd) {
     start = muscleCustomStart;
     end   = muscleCustomEnd;
-    rangeLabel = null; // will use date inputs
+    rangeLabel = null;
   } else {
     const bounds = getWeekBounds(muscleWeekOffset);
     start = bounds.start; end = bounds.end;
@@ -1963,17 +2368,27 @@ function renderMuscleVolume() {
   logs.forEach(log => {
     const meta = state.exMeta[log.exercise] || {};
     const setCount = log.sets.length;
-    if (meta.primary)   primarySets[meta.primary]   = (primarySets[meta.primary]   || 0) + setCount;
-    if (meta.secondary) secondarySets[meta.secondary] = (secondarySets[meta.secondary] || 0) + setCount;
+    const muscles = meta.muscles || [meta.primary, meta.secondary].filter(Boolean);
+    muscles.forEach((m, idx) => {
+      if (!m) return;
+      if (idx === 0) primarySets[m]   = (primarySets[m]   || 0) + setCount;
+      else           secondarySets[m] = (secondarySets[m] || 0) + setCount;
+    });
   });
 
   // ── Range controls
   let html = `<div class="range-mode-bar">
-    <button class="range-mode-btn${muscleRangeMode==="week"?" active":""}" onclick="setMuscleRangeMode('week')">By Week</button>
-    <button class="range-mode-btn${muscleRangeMode==="custom"?" active":""}" onclick="setMuscleRangeMode('custom')">Custom Range</button>
+    <button class="range-mode-btn${muscleRangeMode==="today"?" active":""}" onclick="setMuscleRangeMode('today')">Today</button>
+    <button class="range-mode-btn${muscleRangeMode==="week"?" active":""}" onclick="setMuscleRangeMode('week')">This Week</button>
+    <button class="range-mode-btn${muscleRangeMode==="custom"?" active":""}" onclick="setMuscleRangeMode('custom')">Custom</button>
   </div>`;
 
-  if (muscleRangeMode === "week") {
+  if (muscleRangeMode === "today") {
+    const today = todayStr();
+    html += `<div class="week-nav" style="justify-content:center">
+      <div class="week-nav-label">${today}</div>
+    </div>`;
+  } else if (muscleRangeMode === "week") {
     html += `<div class="week-nav">
       <button onclick="muscleWeekOffset--;renderMuscleVolume()">‹</button>
       <div class="week-nav-label">${rangeLabel}</div>
@@ -2046,7 +2461,7 @@ function renderMuscleVolume() {
 
 function renderProgress() {
   const ex  = document.getElementById("prog-exercise").value;
-  const day = document.getElementById("prog-day").value;
+  const day = "ALL"; // day filter removed
   const el  = document.getElementById("progress-content");
   const data = clientLogs()
     .filter(l => l.exercise === ex && (day === "ALL" || l.day === day))
@@ -2060,12 +2475,16 @@ function renderProgress() {
   const bests = data.map(d => maxW(d.sets));
   const allTimeBest = Math.max(...bests);
 
+  const volumes = data.map(d => d.sets.reduce((t,s) => t + s.r * s.w, 0));
+  const lastVol = volumes[volumes.length-1];
   let html = `<div class="stat-grid">
     <div class="stat-card"><div class="stat-val">${data.length}</div><div class="stat-label">Sessions</div></div>
-    <div class="stat-card"><div class="stat-val">${allTimeBest} kg</div><div class="stat-label">All-time best</div></div>
-    <div class="stat-card"><div class="stat-val">${bests[bests.length-1]} kg</div><div class="stat-label">Last session</div></div>
+    <div class="stat-card"><div class="stat-val">${allTimeBest} kg</div><div class="stat-label">Best weight</div></div>
+    <div class="stat-card"><div class="stat-val">${bests[bests.length-1]} kg</div><div class="stat-label">Last weight</div></div>
+    <div class="stat-card"><div class="stat-val">${lastVol.toLocaleString()}</div><div class="stat-label">Last volume</div></div>
   </div>`;
   html += `<div class="chart-wrap"><div class="chart-label">Max weight per session (kg)</div><canvas id="prog-chart"></canvas></div>`;
+  html += `<div class="chart-wrap"><div class="chart-label">Volume per session (reps × kg)</div><canvas id="prog-chart-vol"></canvas></div>`;
   html += `<div class="prog-table"><div class="prog-table-head"><span>Date</span><span style="text-align:center">Max</span><span style="padding-left:8px">Sets</span></div>`;
   [...data].reverse().forEach(d => {
     const mw = maxW(d.sets);
@@ -2096,6 +2515,26 @@ function renderProgress() {
         }
       }
     });
+    // Volume chart
+    const ctxVol = document.getElementById("prog-chart-vol");
+    if (ctxVol) {
+      if (state.chartInstanceVol) state.chartInstanceVol.destroy();
+      state.chartInstanceVol = new Chart(ctxVol, {
+        type: "bar",
+        data: {
+          labels: data.map(d => d.date.slice(5)),
+          datasets: [{ data: volumes, backgroundColor: "rgba(99,179,237,0.5)", borderColor: "#63b3ed", borderWidth: 1.5, borderRadius: 4 }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.y.toLocaleString() + " kg·reps" } } },
+          scales: {
+            x: { ticks: { color: "#6b7280", font: { size: 10 } }, grid: { color: "#1e1e2e" } },
+            y: { ticks: { color: "#6b7280", font: { size: 10 } }, grid: { color: "#1e1e2e" } }
+          }
+        }
+      });
+    }
   }
 }
 
@@ -2113,7 +2552,7 @@ function deleteWorkoutSession(sessionId) {
   const ids = clientLogs()
     .filter(l => l.workoutSessionId === sessionId)
     .map(l => l.id);
-  customConfirm(`Delete this entire workout session (${ids.length} exercise${ids.length!==1?"s":""})? This cannot be undone.`, async () => {
+  customConfirm(`Delete session? (${ids.length} exercise${ids.length!==1?"s":""})`, async () => {
     state.logs = state.logs.filter(l => !ids.includes(l.id));
     persist();
     renderHistory();
@@ -2171,7 +2610,7 @@ function renderHistory() {
       html += `<div class="history-card">
         <div class="history-info">
           <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
-            ${dayBadge(entry.day)}
+            ${entry.day ? dayBadge(entry.day) : ""}
             <span class="history-name">${esc(entry.exercise)}</span>
           </div>
           <div class="history-sets">${entry.sets.map((s,i)=>`Set ${i+1}: ${s.r} × ${s.w>0?s.w+" kg":"BW"}`).join("  ·  ")}</div>
@@ -2188,7 +2627,7 @@ function renderHistory() {
       const exCount = session.entries.length;
       const titleLine = session.routineName
         ? `${esc(session.routineName)}`
-        : `${dayLabel(session.day)} Workout`;
+        : "Workout";
       const subLine = [
         session.weekLabel,
         `${exCount} exercise${exCount!==1?"s":""}`,
@@ -2199,7 +2638,7 @@ function renderHistory() {
         <div class="workout-session-header" onclick="toggleWorkoutSession('${sid}')">
           <div class="ws-left">
             <div class="ws-title">
-              <span class="badge ${session.day}" style="margin-right:6px">${dayLabel(session.day)}</span>${titleLine}
+              ${titleLine}
             </div>
             <div class="ws-meta">${subLine}</div>
           </div>
@@ -2216,11 +2655,14 @@ function renderHistory() {
       session.entries.forEach(entry => {
         html += `<div class="ws-ex-row" style="display:flex;align-items:flex-start;gap:8px">
           <div style="flex:1">
-            <div class="ws-ex-name">${esc(entry.exercise)}${(()=>{const m=state.exMeta[entry.exercise]||{};const tags=[m.primary,m.secondary].filter(Boolean);return tags.length?` <span style="font-size:10px;color:var(--muted);font-weight:400">${tags.join(' · ')}</span>`:"";})()}</div>
+            <div class="ws-ex-name">${esc(entry.exercise)}${(()=>{const m=state.exMeta[entry.exercise]||{};const tags=(m.muscles||[m.primary,m.secondary].filter(Boolean)).filter(Boolean);return tags.length?` <span style="font-size:10px;color:var(--muted);font-weight:400">${tags.join(' · ')}</span>`:"";})()}</div>
             <div class="ws-ex-sets">${entry.sets.map((s,i)=>`Set ${i+1}: ${s.r} × ${s.w>0?s.w+" kg":"BW"}`).join("  ·  ")}</div>
             <div class="ws-ex-meta">Max: <b>${maxW(entry.sets)} kg</b> &nbsp;·&nbsp; Vol: ${vol(entry.sets)} kg</div>
           </div>
-          <button onclick="openEditEntryModal(${entry.id})" style="background:var(--card2);border:none;border-radius:7px;color:var(--muted);padding:6px 9px;font-size:12px;cursor:pointer;flex-shrink:0;margin-top:2px">✏️</button>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;margin-top:2px">
+            <button onclick="openEditEntryModal(${entry.id})" style="background:var(--card2);border:none;border-radius:7px;color:var(--muted);padding:5px 8px;font-size:12px;cursor:pointer">✏️</button>
+            <button onclick="deleteSessionEntry(${entry.id},'${sid}')" style="background:#1a0a0a;border:none;border-radius:7px;color:var(--accent);padding:5px 8px;font-size:12px;cursor:pointer">🗑</button>
+          </div>
         </div>`;
       });
 
@@ -2232,141 +2674,155 @@ function renderHistory() {
 }
 
 // ─── LIBRARY tab ─────────────────────────────────────────────────────────────
-function renderDayTypesList() {
-  const el = document.getElementById("day-types-list");
+function renderLibrary() {
+  const el = document.getElementById("library-content");
   if (!el) return;
-  let html = "";
-  state.dayTypes.forEach((dt, i) => {
-    const isDefault = ["UPPER","LOWER","FULLBODY"].includes(dt.id);
-    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:8px 10px;background:var(--card2);border-radius:8px">
-      <span style="width:14px;height:14px;border-radius:50%;background:${dt.color};flex-shrink:0;display:inline-block"></span>
-      <span style="flex:1;font-weight:700;font-size:13px">${esc(dt.label)}</span>
-      <span style="font-size:11px;color:var(--muted)">${(state.library[dt.id]||[]).length} exercises</span>
-      ${!isDefault ? `<button onclick="removeDayType('${dt.id}')" style="background:none;border:none;color:var(--accent);font-size:16px;cursor:pointer;padding:0 4px">×</button>` : "<span style='width:24px'></span>"}
+  const searchEl = document.getElementById("lib-search");
+  const q = searchEl ? searchEl.value.trim().toLowerCase() : "";
+  const lib = state.library.filter(ex =>
+    !q || ex.name.toLowerCase().includes(q) ||
+    (ex.muscles || []).some(m => m.toLowerCase().includes(q))
+  );
+  if (!lib.length) {
+    el.innerHTML = '<div class="empty">No exercises found.</div>';
+    return;
+  }
+  let html = '<div class="lib-body" style="border-radius:12px;overflow:hidden">';
+  lib.forEach((ex, i) => {
+    const muscles = (ex.muscles || []).join(", ");
+    const realIdx = state.library.indexOf(ex);
+    html += `<div class="lib-item">
+      <div style="flex:1">
+        <div style="font-weight:600">${esc(ex.name)}</div>
+        ${muscles ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">🎯 ${esc(muscles)}</div>` : ""}
+      </div>
+      <button onclick="openEditExModal(${realIdx})" style="color:var(--muted);background:none;border:none;font-size:15px;cursor:pointer;padding:0 6px">✏️</button>
+      <button onclick="removeExercise(${realIdx})" style="color:var(--accent);background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px">×</button>
     </div>`;
   });
-  el.innerHTML = html || "<div style='color:var(--muted);font-size:13px'>No day types yet.</div>";
-}
-
-function addDayType() {
-  const label = document.getElementById("new-day-label").value.trim();
-  const color = document.getElementById("new-day-color").value;
-  if (!label) return;
-  // generate id from label
-  const id = label.toUpperCase().replace(/[^A-Z0-9]/g,"_").slice(0,20) + "_" + Date.now().toString().slice(-4);
-  state.dayTypes.push({ id, label, color });
-  state.library[id] = [];
-  document.getElementById("new-day-label").value = "";
-  persist();
-  populateDaySelects();
-  renderDayTypesList();
-  renderLibrary();
-  syncPush("saveDayTypes", state.dayTypes);
-  toast("✅ Day type added: " + label);
-}
-
-function removeDayType(id) {
-  const dt = state.dayTypes.find(d=>d.id===id);
-  customConfirm(`Remove day type "${dt?.label}"? Exercises in this day will also be removed.`, () => {
-    state.dayTypes = state.dayTypes.filter(d=>d.id!==id);
-    delete state.library[id];
-    rebuildExMeta();
-    persist();
-    populateDaySelects();
-    renderDayTypesList();
-    renderLibrary();
-    renderExerciseDropdown();
-    syncPush("saveDayTypes", state.dayTypes);
-    toast("🗑 Day type removed");
-  });
-}
-
-function renderLibrary() {
-  renderDayTypesList();
-  const el = document.getElementById("library-content");
-  let html = "";
-  state.dayTypes.forEach(dt => {
-    const exs = exObjsForDay(dt.id);
-    const known = ["UPPER","LOWER","FULLBODY","PUSH","PULL"];
-    const headBg = known.includes(dt.id) ? "" : "";
-    html += `<div class="lib-section-head" style="background:${dt.color}">${esc(dt.label)}</div><div class="lib-body">`;
-    if (!exs.length) {
-      html += `<div class="lib-item" style="color:var(--muted);font-style:italic">No exercises yet</div>`;
-    }
-    exs.forEach((ex, i) => {
-      const muscles = [ex.primary, ex.secondary].filter(Boolean).join(", ");
-      html += `<div class="lib-item">
-        <div style="flex:1">
-          <div style="font-weight:600">${esc(ex.name)}</div>
-          ${muscles ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">🎯 ${esc(muscles)}</div>` : ""}
-        </div>
-        <button onclick="openEditExModal('${dt.id}',${i})" style="color:var(--muted);background:none;border:none;font-size:15px;cursor:pointer;padding:0 6px">✏️</button>
-        <button onclick="removeExercise('${dt.id}',${i})">×</button>
-      </div>`;
-    });
-    html += "</div>";
-  });
+  html += "</div>";
   el.innerHTML = html;
 }
 
+
+// ─── Routine builder tag helpers ──────────────────────────────────────────────
+let rbuilderTags = [];
+
+function populateTagPicker() {
+  const sel = document.getElementById("rbuilder-tag-pick");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Add tag —</option>';
+  state.routineTags.forEach(t => {
+    const o = document.createElement("option");
+    o.value = t; o.textContent = t;
+    sel.appendChild(o);
+  });
+}
+
+function renderRbuilderTagPills() {
+  const el = document.getElementById("rbuilder-tag-pills");
+  if (!el) return;
+  el.innerHTML = rbuilderTags.length
+    ? rbuilderTags.map((t,i) => {
+        const c = tagColor(t);
+        return '<span style="background:'+c+';color:#fff;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px">'+esc(t)+'<button onclick="rbuilderRemoveTag('+i+')" style="background:none;border:none;color:#fff;cursor:pointer;font-size:14px;opacity:.7;padding:0;line-height:1">×</button></span>';
+      }).join("")
+    : '<span style="color:var(--muted);font-size:12px">No tags</span>';
+}
+
+function rbuilderAddTag() {
+  const sel = document.getElementById("rbuilder-tag-pick");
+  const val = sel && sel.value;
+  if (!val || rbuilderTags.includes(val)) return;
+  rbuilderTags.push(val);
+  sel.value = "";
+  renderRbuilderTagPills();
+}
+
+function rbuilderRemoveTag(i) {
+  rbuilderTags.splice(i, 1);
+  renderRbuilderTagPills();
+}
+
+function rbuilderAddCustomTag() {
+  showCustomTagInput();
+}
+
+let customTagCallback = null;
+function showCustomTagInput() {
+  customTagCallback = (tag) => {
+    if (!state.routineTags.includes(tag)) state.routineTags.push(tag);
+    if (!rbuilderTags.includes(tag)) rbuilderTags.push(tag);
+    populateTagPicker();
+    renderRbuilderTagPills();
+    persist();
+  };
+  document.getElementById("custom-tag-input").value = "";
+  document.getElementById("custom-tag-overlay").classList.add("show");
+  setTimeout(() => document.getElementById("custom-tag-input").focus(), 50);
+}
+
+function closeCustomTagInput() {
+  document.getElementById("custom-tag-overlay").classList.remove("show");
+}
+
+function confirmCustomTag() {
+  const val = document.getElementById("custom-tag-input").value.trim();
+  if (val && customTagCallback) customTagCallback(val);
+  closeCustomTagInput();
+}
+
+
+
+// ─── LIBRARY CRUD ─────────────────────────────────────────────────────────────
 async function addExercise() {
-  const name      = document.getElementById("new-ex-name").value.trim();
-  const day       = document.getElementById("new-ex-day").value;
-  const primary   = document.getElementById("new-ex-primary").value;
-  const secondary = document.getElementById("new-ex-secondary").value;
+  const name    = document.getElementById("new-ex-name").value.trim();
+  const muscles = getNewExMuscles();
   if (!name) return;
-  if (!state.library[day]) state.library[day] = [];
-  state.library[day].push({ name, primary, secondary });
+  if (state.library.some(e => e.name.toLowerCase() === name.toLowerCase())) {
+    toast("⚠ Already in library"); return;
+  }
+  state.library.push({ name, muscles });
   rebuildExMeta();
   document.getElementById("new-ex-name").value = "";
+  resetNewExMuscles();
   persist();
   renderLibrary();
   renderExerciseDropdown();
   renderProgExerciseDropdown();
   if (state.scriptUrl) {
-    try { await fetchApi(state.scriptUrl, "saveLibrary", state.library); setBadge("ok"); } catch { setBadge("err"); }
+    try { await fetchApi(state.scriptUrl, "saveLibrary", state.library); setBadge("ok"); }
+    catch { setBadge("err"); }
   }
   toast("✅ Added: " + name);
 }
 
-async function removeExercise(day, i) {
-  state.library[day].splice(i, 1);
-  rebuildExMeta();
-  persist();
-  renderLibrary();
-  renderExerciseDropdown();
-  renderProgExerciseDropdown();
-  if (state.scriptUrl) {
-    try { await fetchApi(state.scriptUrl, "saveLibrary", state.library); setBadge("ok"); } catch { setBadge("err"); }
-  }
-}
-
-// ─── EDIT EXERCISE MODAL ─────────────────────────────────────────────────────
-let editExDay = null, editExIdx = null;
-
-function populateEditExMuscleDropdowns() {
-  ["edit-ex-primary","edit-ex-secondary"].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const cur = el.value;
-    el.innerHTML = '<option value="">— None —</option>';
-    ALL_MUSCLES.forEach(m => {
-      const o = document.createElement("option");
-      o.value = m; o.textContent = m;
-      el.appendChild(o);
-    });
-    el.value = cur;
+async function removeExercise(i) {
+  const ex = state.library[i];
+  customConfirm(`Remove "${ex?.name}" from library?`, async () => {
+    state.library.splice(i, 1);
+    rebuildExMeta();
+    persist();
+    renderLibrary();
+    renderExerciseDropdown();
+    renderProgExerciseDropdown();
+    if (state.scriptUrl) {
+      try { await fetchApi(state.scriptUrl, "saveLibrary", state.library); setBadge("ok"); }
+      catch { setBadge("err"); }
+    }
   });
 }
 
-function openEditExModal(dayId, idx) {
-  const ex = exObjsForDay(dayId)[idx];
+let editExDay = null, editExIdx = null;
+
+function openEditExModal(idx) {
+  const ex = state.library[idx];
   if (!ex) return;
-  editExDay = dayId; editExIdx = idx;
+  editExIdx = idx;
   document.getElementById("edit-ex-name").value = ex.name;
-  populateEditExMuscleDropdowns();
-  document.getElementById("edit-ex-primary").value   = ex.primary   || "";
-  document.getElementById("edit-ex-secondary").value = ex.secondary || "";
+  populateMuscleDropdowns();
+  editExMuscles = ex.muscles ? [...ex.muscles] : [];
+  renderMuscleTags("edit-ex-muscles-tags", editExMuscles, "editExRemoveMuscle");
   document.getElementById("edit-ex-modal").classList.add("show");
 }
 
@@ -2374,25 +2830,28 @@ function closeEditExModal() {
   document.getElementById("edit-ex-modal").classList.remove("show");
 }
 
-function saveEditEx() {
-  if (editExDay === null || editExIdx === null) return;
-  const name      = document.getElementById("edit-ex-name").value.trim();
-  const primary   = document.getElementById("edit-ex-primary").value;
-  const secondary = document.getElementById("edit-ex-secondary").value;
+async function saveEditEx() {
+  if (editExIdx === null) return;
+  const name    = document.getElementById("edit-ex-name").value.trim();
+  const muscles = getEditExMuscles();
   if (!name) return;
-  state.library[editExDay][editExIdx] = { name, primary, secondary };
+  state.library[editExIdx] = { name, muscles };
   rebuildExMeta();
-  persist();
   closeEditExModal();
+  persist();
   renderLibrary();
   renderExerciseDropdown();
   renderProgExerciseDropdown();
+  if (state.scriptUrl) {
+    try { await fetchApi(state.scriptUrl, "saveLibrary", state.library); setBadge("ok"); }
+    catch { setBadge("err"); }
+  }
   toast("✅ Exercise updated");
 }
 
 // ─── EDIT ENTRY MODAL ────────────────────────────────────────────────────────
 let editModalEntryId = null;
-let editModalSets = [];
+let editModalSets    = [];
 
 function openEditEntryModal(id) {
   const entry = state.logs.find(l => l.id === id);
@@ -2407,8 +2866,6 @@ function openEditEntryModal(id) {
 
 function closeEditEntryModal() {
   document.getElementById("edit-entry-modal").classList.remove("show");
-  editModalEntryId = null;
-  editModalSets = [];
 }
 
 function renderEditModalSets() {
@@ -2419,11 +2876,11 @@ function renderEditModalSets() {
     row.className = "set-row";
     row.innerHTML = `
       <div class="set-num">${i + 1}</div>
-      <input type="number" inputmode="numeric" placeholder="8" value="${s.r}"
+      <input type="number" inputmode="numeric" placeholder="Reps" value="${s.r}"
         oninput="editModalSets[${i}].r=this.value">
-      <input type="number" inputmode="decimal" placeholder="0" value="${s.w}"
+      <input type="number" inputmode="decimal" placeholder="kg" value="${s.w}"
         oninput="editModalSets[${i}].w=this.value">
-      <button class="btn-del-set" onclick="editModalRemoveSet(${i})">×</button>
+      <button class="set-del" onclick="editModalRemoveSet(${i})">×</button>
     `;
     container.appendChild(row);
   });
@@ -2435,64 +2892,37 @@ function editModalAddSet() {
 }
 
 function editModalRemoveSet(i) {
-  if (editModalSets.length === 1) return;
+  if (editModalSets.length <= 1) return;
   editModalSets.splice(i, 1);
   renderEditModalSets();
 }
 
 async function saveEditEntry() {
   if (editModalEntryId === null) return;
+  const date = document.getElementById("edit-entry-date").value;
   const validSets = editModalSets
     .filter(s => s.r !== "" && s.w !== "")
     .map(s => ({ r: Number(s.r), w: Number(s.w) }));
-  if (!validSets.length) { toast("⚠ Enter at least one set"); return; }
-
-  const date = document.getElementById("edit-entry-date").value;
+  if (!validSets.length) return;
   const idx = state.logs.findIndex(l => l.id === editModalEntryId);
   if (idx === -1) return;
-
-  state.logs[idx] = { ...state.logs[idx], sets: validSets, date };
+  state.logs[idx] = { ...state.logs[idx], date, sets: validSets };
   persist();
   closeEditEntryModal();
   renderHistory();
-  // Re-render progress if open so comparison updates too
-  if (progMode === "routine") renderRoutineProgress();
-  if (progMode === "exercise") renderProgress();
-
+  renderProgress();
   if (state.scriptUrl) {
-    try { await fetchApi(state.scriptUrl, "updateLog", state.logs[idx]); setBadge("ok"); } catch { setBadge("err"); }
+    try { await fetchApi(state.scriptUrl, "updateLog", state.logs[idx]); setBadge("ok"); }
+    catch { setBadge("err"); }
   }
-  toast("✅ Updated!");
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function customConfirm(msg, onYes) {
-  const overlay = document.getElementById("confirm-modal");
-  document.getElementById("confirm-msg").textContent = msg;
-  overlay.classList.add("show");
-  const yes = document.getElementById("confirm-yes");
-  const no  = document.getElementById("confirm-no");
-  const close = () => overlay.classList.remove("show");
-  yes.onclick = () => { close(); onYes(); };
-  no.onclick  = close;
-}
-
-function esc(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
-
-function toast(msg) {
-  const el = document.getElementById("toast");
-  el.textContent = msg;
-  el.classList.add("show");
-  setTimeout(() => el.classList.remove("show"), 2200);
+  toast("✅ Entry updated");
 }
 
 // ─── TIMER ────────────────────────────────────────────────────────────────────
 let timerInterval  = null;
 let timerRunning   = false;
-let timerSeconds   = 0;      // elapsed (stopwatch) or remaining (countdown)
-let timerMode      = "stop"; // "stop" | "run" | "countdown"
+let timerSeconds   = 0;
+let timerMode      = "stop";
 let timerCountdownFrom = 0;
 
 function timerFmt(s) {
@@ -2507,41 +2937,36 @@ function timerRender() {
   const btn  = document.getElementById("timer-playpause");
   if (!disp) return;
   disp.textContent = timerFmt(timerSeconds);
-  // colour
   disp.className = "";
-  if (timerMode === "run") {
-    disp.classList.add("running");
-  } else if (timerMode === "countdown") {
+  if (timerMode === "run") disp.classList.add("running");
+  else if (timerMode === "countdown") {
     if (timerSeconds <= 0) disp.classList.add("done");
     else if (timerSeconds <= 10) disp.classList.add("countdown");
     else disp.classList.add("running");
   }
-  btn.textContent = timerRunning ? "⏸" : "▶";
-  btn.className   = "timer-btn " + (timerRunning ? "green" : "primary");
+  if (btn) {
+    btn.textContent = timerRunning ? "⏸" : "▶";
+    btn.className   = "timer-btn " + (timerRunning ? "green" : "primary");
+  }
 }
 
 function timerTick() {
-  if (timerMode === "run") {
-    timerSeconds++;
-  } else if (timerMode === "countdown") {
+  if (timerMode === "run") { timerSeconds++; }
+  else if (timerMode === "countdown") {
     timerSeconds--;
     if (timerSeconds <= 0) {
-      timerSeconds = 0;
-      timerStop();
-      // vibrate if supported
+      timerSeconds = 0; timerStop();
       if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-      timerRender();
-      return;
+      timerRender(); return;
     }
   }
   timerRender();
 }
 
 function timerToggle() {
-  if (timerRunning) {
-    timerStop();
-  } else {
-    if (timerMode === "stop") timerMode = "run"; // default to stopwatch
+  if (timerRunning) { timerStop(); }
+  else {
+    if (timerMode === "stop") timerMode = "run";
     timerRunning = true;
     timerInterval = setInterval(timerTick, 1000);
   }
@@ -2558,12 +2983,10 @@ function timerReset() {
   timerStop();
   timerSeconds = timerCountdownFrom;
   timerMode = timerCountdownFrom > 0 ? "countdown" : "stop";
-  // clear active preset highlights
   document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active-preset"));
   if (timerCountdownFrom > 0) {
-    // re-highlight the matching preset
     document.querySelectorAll(".preset-btn").forEach(b => {
-      if (b.getAttribute("onclick") === `timerSetCountdown(${timerCountdownFrom})`) {
+      if (b.getAttribute("onclick") === "timerSetCountdown(" + timerCountdownFrom + ")") {
         b.classList.add("active-preset");
       }
     });
@@ -2577,14 +3000,53 @@ function timerSetCountdown(seconds) {
   timerSeconds = seconds;
   timerMode = "countdown";
   document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active-preset"));
-  event.target.classList.add("active-preset");
+  if (event && event.target) event.target.classList.add("active-preset");
   timerRender();
-  // auto-start
   timerToggle();
 }
 
-// init display
 window.addEventListener("DOMContentLoaded", () => { timerRender(); });
+
 </script>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="confirm-overlay" style="z-index:300">
+  <div class="modal" style="padding:24px 20px">
+    <div id="confirm-msg" style="font-size:15px;line-height:1.5;margin-bottom:20px;white-space:pre-wrap"></div>
+    <div style="display:flex;gap:10px">
+      <button id="confirm-cancel" style="flex:1;background:var(--card2);border:none;border-radius:10px;padding:13px;color:var(--muted);font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Cancel</button>
+      <button id="confirm-ok" style="flex:1;background:var(--accent);border:none;border-radius:10px;padding:13px;color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOM MUSCLE OVERLAY -->
+<div class="modal-overlay" id="custom-muscle-overlay" onclick="if(event.target===this)closeCustomMuscleInput()" style="z-index:220">
+  <div class="modal" style="padding:20px 18px 28px">
+    <div class="modal-title" style="margin-bottom:14px">➕ Custom Muscle</div>
+    <input type="text" id="custom-muscle-input" placeholder="e.g. Serratus, Adductors…"
+      style="margin-bottom:12px"
+      onkeydown="if(event.key==='Enter')confirmCustomMuscle()">
+    <div style="display:flex;gap:8px">
+      <button onclick="closeCustomMuscleInput()" style="flex:1;background:var(--card2);border:none;border-radius:10px;padding:12px;color:var(--muted);font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Cancel</button>
+      <button onclick="confirmCustomMuscle()" style="flex:1;background:var(--accent);border:none;border-radius:10px;padding:12px;color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Add Muscle</button>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOM TAG OVERLAY -->
+<div class="modal-overlay" id="custom-tag-overlay" onclick="if(event.target===this)closeCustomTagInput()" style="z-index:220">
+  <div class="modal" style="padding:20px 18px 28px">
+    <div class="modal-title" style="margin-bottom:14px">🏷 New Tag</div>
+    <input type="text" id="custom-tag-input" placeholder="e.g. Mobility, Conditioning…"
+      style="margin-bottom:12px"
+      onkeydown="if(event.key==='Enter')confirmCustomTag()">
+    <div style="display:flex;gap:8px">
+      <button onclick="closeCustomTagInput()" style="flex:1;background:var(--card2);border:none;border-radius:10px;padding:12px;color:var(--muted);font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Cancel</button>
+      <button onclick="confirmCustomTag()" style="flex:1;background:var(--accent);border:none;border-radius:10px;padding:12px;color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Add Tag</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
