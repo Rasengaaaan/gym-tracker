@@ -445,13 +445,8 @@
 
     <div class="mb8"><input type="text" id="rname" placeholder="Routine name (e.g. Push A)…"></div>
     <div style="margin-bottom:10px">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:700">Tags</div>
-      <div id="rbuilder-tag-pills" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;min-height:26px"></div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <select id="rbuilder-tag-pick" style="flex:1;height:38px"></select>
-        <button onclick="rbuilderAddTag()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 12px;height:38px;font-size:15px;font-weight:700;cursor:pointer;flex-shrink:0">+</button>
-        <button onclick="rbuilderAddCustomTag()" style="background:var(--card2);color:var(--muted);border:none;border-radius:8px;padding:0 10px;height:38px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">+ New</button>
-      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700">Tags <span style="font-weight:400;opacity:.6">(tap to toggle)</span></div>
+      <div id="rbuilder-tag-toggles" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
 
     <div class="section-label">Exercises</div>
@@ -625,6 +620,8 @@
 
 
 <script>
+let rbuilderTags = []; // must be declared before openRoutineModal/saveRoutine
+
 // ─── Core helpers ─────────────────────────────────────────────────────────────
 function esc(str) {
   return String(str ?? "")
@@ -969,16 +966,28 @@ async function connectSheet() {
     if (res.error) throw new Error(res.error);
     state.scriptUrl = url;
     localStorage.setItem("gym_script_url", url);
-    if (res.logs)     state.logs     = res.logs;
-    if (res.library)  {
-      Object.keys(res.library).forEach(k => {
-        res.library[k] = res.library[k].map(e => typeof e==="string" ? {name:e,primary:"",secondary:""} : e);
-      });
-      state.library = res.library;
+    if (res.logs) state.logs = res.logs;
+    if (res.library) {
+      if (Array.isArray(res.library)) {
+        state.library = res.library.map(e => typeof e === "string" ? {name:e,muscles:[]} : {
+          name: e.name, muscles: e.muscles || [e.primary, e.secondary].filter(Boolean)
+        });
+      } else if (typeof res.library === "object") {
+        const seen = new Set();
+        state.library = [];
+        Object.values(res.library).forEach(arr => {
+          (arr || []).forEach(e => {
+            const obj = typeof e === "string" ? {name:e,muscles:[]} : {
+              name: e.name, muscles: e.muscles || [e.primary, e.secondary].filter(Boolean)
+            };
+            if (obj.name && !seen.has(obj.name)) { seen.add(obj.name); state.library.push(obj); }
+          });
+        });
+      }
     }
     if (res.clients)       state.clients       = res.clients;
     if (res.routines)      state.routines      = res.routines;
-    if (res.dayTypes && res.dayTypes.length)   state.dayTypes      = res.dayTypes;
+    if (res.routineTags && res.routineTags.length) state.routineTags = res.routineTags;
     if (res.muscleTargets) state.muscleTargets = res.muscleTargets;
     rebuildExMeta();
     persist();
@@ -1271,8 +1280,7 @@ function openRoutineModal(editId) {
     title.textContent = "📋 New Routine";
   }
 
-  populateTagPicker();
-  renderRbuilderTagPills();
+  renderTagToggles();
   populateRbuilderExDropdown();
   renderRbuilderExercises();
   modal.classList.add("show");
@@ -2706,55 +2714,89 @@ function renderLibrary() {
 
 
 // ─── Routine builder tag helpers ──────────────────────────────────────────────
-let rbuilderTags = [];
+function renderTagToggles() {
+  const el = document.getElementById("rbuilder-tag-toggles");
+  if (!el) return;
+  const tags = (state.routineTags && state.routineTags.length)
+    ? state.routineTags
+    : ["Upper","Lower","Full Body","Push","Pull","Legs","Arms","Cardio"];
+  el.innerHTML = tags.map(t => {
+    const on = rbuilderTags.includes(t);
+    const c  = tagColor(t);
+    const bg = on ? c : "var(--card2)";
+    const col = on ? "#fff" : "var(--muted)";
+    const border = on ? "none" : "1px solid var(--border)";
+    const esc_t = t.replace(/'/g, "\'");
+    return `<button
+      onclick="toggleRoutineTag('${esc_t}')"
+      oncontextmenu="deleteRoutineTag('${esc_t}');event.preventDefault()"
+      ontouchstart="startTagHold('${esc_t}',event)"
+      ontouchend="cancelTagHold()"
+      ontouchmove="cancelTagHold()"
+      title="Tap to toggle · Hold to delete"
+      style="background:${bg};color:${col};border:${border};border-radius:20px;
+             padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;
+             font-family:inherit;transition:all .15s;position:relative">${t}</button>`;
+  }).join("") +
+  `<button onclick="rbuilderAddCustomTag()"
+    style="background:var(--card2);color:var(--muted);border:1px dashed var(--border);
+           border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;
+           cursor:pointer;font-family:inherit">+ Custom</button>`;
+}
 
-function populateTagPicker() {
-  const sel = document.getElementById("rbuilder-tag-pick");
-  if (!sel) return;
-  sel.innerHTML = '<option value="">— Add tag —</option>';
-  state.routineTags.forEach(t => {
-    const o = document.createElement("option");
-    o.value = t; o.textContent = t;
-    sel.appendChild(o);
+let _tagHoldTimer = null;
+
+function startTagHold(t, e) {
+  cancelTagHold();
+  _tagHoldTimer = setTimeout(() => {
+    _tagHoldTimer = null;
+    deleteRoutineTag(t);
+  }, 600);
+}
+
+function cancelTagHold() {
+  if (_tagHoldTimer) { clearTimeout(_tagHoldTimer); _tagHoldTimer = null; }
+}
+
+function deleteRoutineTag(t) {
+  const usedIn = state.routines.filter(r => r.tags && r.tags.includes(t)).map(r => r.name);
+  const warning = usedIn.length
+    ? `\nAlso removes it from: ${usedIn.join(", ")}` : "";
+  customConfirm(`Delete tag "${t}"?${warning}`, () => {
+    state.routineTags = state.routineTags.filter(x => x !== t);
+    rbuilderTags = rbuilderTags.filter(x => x !== t);
+    // Remove from all routines that have it
+    state.routines = state.routines.map(r => ({
+      ...r, tags: (r.tags || []).filter(x => x !== t)
+    }));
+    persist();
+    syncPush("saveRoutines", state.routines);
+    renderTagToggles();
+    renderRoutines();
   });
 }
 
-function renderRbuilderTagPills() {
-  const el = document.getElementById("rbuilder-tag-pills");
-  if (!el) return;
-  el.innerHTML = rbuilderTags.length
-    ? rbuilderTags.map((t,i) => {
-        const c = tagColor(t);
-        return '<span style="background:'+c+';color:#fff;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px">'+esc(t)+'<button onclick="rbuilderRemoveTag('+i+')" style="background:none;border:none;color:#fff;cursor:pointer;font-size:14px;opacity:.7;padding:0;line-height:1">×</button></span>';
-      }).join("")
-    : '<span style="color:var(--muted);font-size:12px">No tags</span>';
-}
-
-function rbuilderAddTag() {
-  const sel = document.getElementById("rbuilder-tag-pick");
-  const val = sel && sel.value;
-  if (!val || rbuilderTags.includes(val)) return;
-  rbuilderTags.push(val);
-  sel.value = "";
-  renderRbuilderTagPills();
-}
-
-function rbuilderRemoveTag(i) {
-  rbuilderTags.splice(i, 1);
-  renderRbuilderTagPills();
+function toggleRoutineTag(t) {
+  const i = rbuilderTags.indexOf(t);
+  if (i === -1) rbuilderTags.push(t);
+  else rbuilderTags.splice(i, 1);
+  renderTagToggles();
 }
 
 function rbuilderAddCustomTag() {
   showCustomTagInput();
 }
 
-let customTagCallback = null;
+function populateTagPicker() { renderTagToggles(); }
+function renderRbuilderTagPills() { renderTagToggles(); }
+
+
 function showCustomTagInput() {
   customTagCallback = (tag) => {
+    if (!state.routineTags) state.routineTags = [];
     if (!state.routineTags.includes(tag)) state.routineTags.push(tag);
     if (!rbuilderTags.includes(tag)) rbuilderTags.push(tag);
-    populateTagPicker();
-    renderRbuilderTagPills();
+    renderTagToggles();
     persist();
   };
   document.getElementById("custom-tag-input").value = "";
