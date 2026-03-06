@@ -403,6 +403,17 @@
   .muscle-tag button { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:0; line-height:1; }
   .muscle-tag:first-child { background:#1e3a5f; color:#93c5fd; }
 
+
+  .drag-handle {
+    cursor: grab; color: var(--muted); font-size: 18px; padding: 0 8px 0 2px;
+    user-select: none; touch-action: none; flex-shrink: 0; opacity: .5;
+  }
+  .drag-handle:active { cursor: grabbing; }
+  .dragging { opacity: .35; }
+  .drag-over-top    { border-top: 2px solid var(--accent) !important; }
+  .drag-over-bottom { border-bottom: 2px solid var(--accent) !important; }
+  .routine-card { transition: opacity .15s; }
+  .rbuilder-ex-block { transition: opacity .15s; }
 </style>
 </head>
 <body>
@@ -749,6 +760,7 @@ let state = {
   routineTags: JSON.parse(JSON.stringify(DEFAULT_TAGS)), // available tags for routines
   exMeta: {},             // { exerciseName: { muscles: [] } }
   customMuscles: [],      // user-added muscle names
+  meAvatar: "",             // avatar URL for "Me (Trainer)"
   muscleTargets: {}, // overrides: { clientId_muscle: number }
   routines: [],
   scriptUrl: localStorage.getItem("gym_script_url") || "",
@@ -859,6 +871,7 @@ function loadLocal() {
     state.activeClientId = d.activeClientId !== undefined ? d.activeClientId : null;
     state.muscleTargets = d.muscleTargets || {};
     state.customMuscles = d.customMuscles || [];
+    state.meAvatar      = d.meAvatar      || "";
     state.routineTags   = d.routineTags   || JSON.parse(JSON.stringify(DEFAULT_TAGS));
     // Migrate old day-keyed library OR load flat library
     if (Array.isArray(d.library)) {
@@ -924,6 +937,7 @@ function persist() {
     activeClientId: state.activeClientId,
     muscleTargets: state.muscleTargets,
     customMuscles: state.customMuscles,
+    meAvatar: state.meAvatar,
   }));
   // Persist active session separately so it survives page close
   if (state.loadedRoutine) {
@@ -985,7 +999,11 @@ async function connectSheet() {
         });
       }
     }
-    if (res.clients)       state.clients       = res.clients;
+    if (res.clients) {
+      const me = res.clients.find(c => c.id === "__me__");
+      if (me) state.meAvatar = me.avatar || "";
+      state.clients = res.clients.filter(c => c.id !== "__me__");
+    }
     if (res.routines)      state.routines      = res.routines;
     if (res.routineTags && res.routineTags.length) state.routineTags = res.routineTags;
     if (res.muscleTargets) state.muscleTargets = res.muscleTargets;
@@ -1068,7 +1086,11 @@ async function syncNow() {
         });
       }
     }
-    if (res.clients)       state.clients       = res.clients;
+    if (res.clients) {
+      const me = res.clients.find(c => c.id === "__me__");
+      if (me) state.meAvatar = me.avatar || "";
+      state.clients = res.clients.filter(c => c.id !== "__me__");
+    }
     if (res.routines)      state.routines      = res.routines;
     if (res.routineTags && res.routineTags.length) state.routineTags = res.routineTags;
     if (res.muscleTargets) state.muscleTargets = res.muscleTargets;
@@ -1104,10 +1126,17 @@ function switchTab(id) {
 function updateClientPill() {
   const pill = document.getElementById("client-pill");
   if (state.activeClientId === null) {
-    pill.textContent = "Me 👤";
+    const meImg = state.meAvatar
+      ? `<img src="${esc(state.meAvatar)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px" onerror="this.style.display='none'">`
+      : "";
+    pill.innerHTML = meImg + "Me";
   } else {
     const c = state.clients.find(c => c.id === state.activeClientId);
-    pill.textContent = c ? c.name : "Me 👤";
+    if (!c) { pill.innerHTML = "Me 👤"; return; }
+    const img = c.avatar
+      ? `<img src="${esc(c.avatar)}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:5px" onerror="this.style.display='none'">`
+      : "";
+    pill.innerHTML = img + esc(c.name);
   }
 }
 
@@ -1121,17 +1150,29 @@ function closeClientModal() {
 
 function renderClientList() {
   const el = document.getElementById("client-list");
+  const meAvatarHtml = state.meAvatar
+    ? `<img src="${esc(state.meAvatar)}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`
+    : `<div style="width:48px;height:48px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">👤</div>`;
   let html = `<div class="client-list-item${state.activeClientId === null ? " active" : ""}" onclick="selectClient(null)">
-    <div><div class="client-name">Me (Trainer)</div><div class="client-meta">Your own logs</div></div>
+    ${meAvatarHtml}
+    <div style="flex:1"><div class="client-name">Me (Trainer)</div><div class="client-meta">Your own logs</div></div>
+    <div class="client-actions" onclick="event.stopPropagation()">
+      <button onclick="openEditMeModal()">✏️</button>
+    </div>
   </div>`;
   state.clients.forEach(c => {
     const count = state.logs.filter(l => l.clientId === c.id).length;
+    const avatarHtml = c.avatar
+      ? `<img src="${esc(c.avatar)}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`
+      : `<div style="width:48px;height:48px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">🏋️</div>`;
     html += `<div class="client-list-item${state.activeClientId === c.id ? " active" : ""}" onclick="selectClient('${c.id}')">
+      ${avatarHtml}
       <div style="flex:1">
         <div class="client-name">${esc(c.name)}</div>
         <div class="client-meta">${count} log${count !== 1 ? "s" : ""}${c.notes ? " · " + esc(c.notes.slice(0,40)) : ""}</div>
       </div>
       <div class="client-actions" onclick="event.stopPropagation()">
+        <button onclick="openEditClientModal('${c.id}')">✏️</button>
         <button class="del" onclick="deleteClient('${c.id}')">🗑</button>
       </div>
     </div>`;
@@ -1226,9 +1267,17 @@ function renderRoutines() {
   }
   let html = "";
   mine.forEach(r => {
-    html += `<div class="routine-card">
+    const muscleCounts = routineMuscleCounts(r);
+    const pillsHtml = musclePillsHtml(muscleCounts);
+    html += `<div class="routine-card" draggable="true" data-id="${r.id}"
+      ondragstart="routineDragStart(event)"
+      ondragover="routineDragOver(event)"
+      ondragleave="routineDragLeave(event)"
+      ondrop="routineDrop(event)"
+      ondragend="routineDragEnd(event)">
       <div class="routine-header">
-        <div>
+        <span class="drag-handle" title="Drag to reorder">⠿</span>
+        <div style="flex:1">
           <div class="routine-name">${esc(r.name)}</div>
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center">
             ${tagPills(r.tags || (r.day ? [r.day] : []))}
@@ -1241,19 +1290,17 @@ function renderRoutines() {
           <button class="del" onclick="deleteRoutine('${r.id}')">🗑</button>
         </div>
       </div>
-      <div class="routine-exercises">`;
-    r.exercises.forEach(ex => {
-      const setSummary = ex.sets.map((s,i) => `Set ${i+1}: ${s.r} reps @ ${s.w>0?s.w+"kg":"BW"}`).join("  ·  ");
-      html += `<div class="routine-ex-row"><div class="routine-ex-name">${esc(ex.name)}</div><div class="routine-ex-sets">${setSummary}</div></div>`;
-    });
-    const muscleCounts = routineMuscleCounts(r);
-    const pillsHtml = musclePillsHtml(muscleCounts);
-    if (pillsHtml) {
-      html += `<div style="border-top:1px solid var(--border)">${pillsHtml}</div>`;
-    }
-    html += `</div></div>`;
+      <div class="routine-exercises">
+        ${r.exercises.map(ex => {
+          const setSummary = ex.sets.map((s,i) => `Set ${i+1}: ${s.r} reps @ ${s.w>0?s.w+"kg":"BW"}`).join("  ·  ");
+          return `<div class="routine-ex-row"><div class="routine-ex-name">${esc(ex.name)}</div><div class="routine-ex-sets">${setSummary}</div></div>`;
+        }).join("")}
+        ${pillsHtml ? `<div style="border-top:1px solid var(--border)">${pillsHtml}</div>` : ""}
+      </div>
+    </div>`;
   });
   el.innerHTML = html;
+  initRoutineTouchDrag();
 }
 
 function openRoutineModal(editId) {
@@ -1333,8 +1380,14 @@ function renderRbuilderExercises() {
   const el = document.getElementById("rbuilder-exercises");
   let html = "";
   state.rbuilderExercises.forEach((ex, ei) => {
-    html += `<div class="rbuilder-ex-block">
+    html += `<div class="rbuilder-ex-block" draggable="true" data-ei="${ei}"
+      ondragstart="exDragStart(event)"
+      ondragover="exDragOver(event)"
+      ondragleave="exDragLeave(event)"
+      ondrop="exDrop(event)"
+      ondragend="exDragEnd(event)">
       <div class="rbuilder-ex-title">
+        <span class="drag-handle">⠿</span>
         <div class="rbuilder-ex-name">${esc(ex.name)}</div>
         <button class="rbuilder-ex-del" onclick="rbuilderRemoveEx(${ei})">×</button>
       </div>
@@ -1355,6 +1408,7 @@ function renderRbuilderExercises() {
   });
   el.innerHTML = html;
   renderRbuilderMuscleSummary();
+  initExTouchDrag();
 }
 
 function renderRbuilderMuscleSummary() {
@@ -3049,46 +3103,369 @@ function timerSetCountdown(seconds) {
 
 window.addEventListener("DOMContentLoaded", () => { timerRender(); });
 
+
+// ─── DRAG & DROP — Routines ───────────────────────────────────────────────────
+let _dragRoutineId = null;
+
+function routineDragStart(e) {
+  _dragRoutineId = e.currentTarget.dataset.id;
+  e.currentTarget.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+}
+
+function routineDragOver(e) {
+  e.preventDefault();
+  const card = e.currentTarget;
+  const rect = card.getBoundingClientRect();
+  const mid  = rect.top + rect.height / 2;
+  card.classList.remove("drag-over-top","drag-over-bottom");
+  card.classList.add(e.clientY < mid ? "drag-over-top" : "drag-over-bottom");
+}
+
+function routineDragLeave(e) {
+  e.currentTarget.classList.remove("drag-over-top","drag-over-bottom");
+}
+
+function routineDrop(e) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  const targetId = target.dataset.id;
+  if (!_dragRoutineId || _dragRoutineId === targetId) return;
+  const rect  = target.getBoundingClientRect();
+  const after = e.clientY >= rect.top + rect.height / 2;
+  const mine  = state.routines.filter(r => r.clientId === state.activeClientId);
+  const others = state.routines.filter(r => r.clientId !== state.activeClientId);
+  const fromIdx = mine.findIndex(r => r.id === _dragRoutineId);
+  const toIdx   = mine.findIndex(r => r.id === targetId);
+  if (fromIdx === -1 || toIdx === -1) return;
+  const [moved] = mine.splice(fromIdx, 1);
+  const insertAt = after ? toIdx + (fromIdx < toIdx ? 0 : 1) : toIdx - (fromIdx > toIdx ? 0 : 1);
+  mine.splice(Math.max(0, Math.min(mine.length, after
+    ? (fromIdx < toIdx ? toIdx : toIdx + 1)
+    : (fromIdx > toIdx ? toIdx : toIdx - 1)
+  )), 0, moved);
+  state.routines = [...others, ...mine];
+  persist();
+  syncPush("saveRoutines", state.routines);
+  renderRoutines();
+}
+
+function routineDragEnd(e) {
+  e.currentTarget.classList.remove("dragging","drag-over-top","drag-over-bottom");
+  document.querySelectorAll(".routine-card").forEach(c =>
+    c.classList.remove("drag-over-top","drag-over-bottom","dragging"));
+  _dragRoutineId = null;
+}
+
+// ─── DRAG & DROP — Exercises in routine builder ───────────────────────────────
+let _dragExIdx = null;
+
+function exDragStart(e) {
+  _dragExIdx = Number(e.currentTarget.dataset.ei);
+  e.currentTarget.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+}
+
+function exDragOver(e) {
+  e.preventDefault();
+  const block = e.currentTarget;
+  const rect  = block.getBoundingClientRect();
+  block.classList.remove("drag-over-top","drag-over-bottom");
+  block.classList.add(e.clientY < rect.top + rect.height / 2 ? "drag-over-top" : "drag-over-bottom");
+}
+
+function exDragLeave(e) {
+  e.currentTarget.classList.remove("drag-over-top","drag-over-bottom");
+}
+
+function exDrop(e) {
+  e.preventDefault();
+  const targetIdx = Number(e.currentTarget.dataset.ei);
+  if (_dragExIdx === null || _dragExIdx === targetIdx) return;
+  const rect  = e.currentTarget.getBoundingClientRect();
+  const after = e.clientY >= rect.top + e.currentTarget.getBoundingClientRect().height / 2;
+  const arr   = state.rbuilderExercises;
+  const [moved] = arr.splice(_dragExIdx, 1);
+  let insertAt = targetIdx > _dragExIdx ? targetIdx - 1 : targetIdx;
+  if (after) insertAt++;
+  arr.splice(Math.max(0, Math.min(arr.length, insertAt)), 0, moved);
+  renderRbuilderExercises();
+}
+
+function exDragEnd(e) {
+  document.querySelectorAll(".rbuilder-ex-block").forEach(b =>
+    b.classList.remove("dragging","drag-over-top","drag-over-bottom"));
+  _dragExIdx = null;
+}
+
+// ─── TOUCH DRAG — Routines ────────────────────────────────────────────────────
+function initRoutineTouchDrag() {
+  document.querySelectorAll(".routine-card .drag-handle").forEach(handle => {
+    handle.addEventListener("touchstart", onRoutineTouchStart, { passive: false });
+  });
+}
+
+let _touchRoutine = { id: null, ghost: null, startY: 0, cards: [] };
+
+function onRoutineTouchStart(e) {
+  e.preventDefault();
+  const card = e.currentTarget.closest(".routine-card");
+  _touchRoutine.id = card.dataset.id;
+  _touchRoutine.startY = e.touches[0].clientY;
+  _touchRoutine.cards = [...document.querySelectorAll(".routine-card")];
+  const rect = card.getBoundingClientRect();
+  const ghost = card.cloneNode(true);
+  ghost.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;
+    opacity:.8;pointer-events:none;z-index:9999;box-shadow:0 8px 24px #0008;transition:none`;
+  document.body.appendChild(ghost);
+  _touchRoutine.ghost = ghost;
+  _touchRoutine.offsetY = e.touches[0].clientY - rect.top;
+  card.classList.add("dragging");
+  document.addEventListener("touchmove", onRoutineTouchMove, { passive: false });
+  document.addEventListener("touchend",  onRoutineTouchEnd);
+}
+
+function onRoutineTouchMove(e) {
+  e.preventDefault();
+  const y = e.touches[0].clientY;
+  const ghost = _touchRoutine.ghost;
+  if (ghost) ghost.style.top = (y - _touchRoutine.offsetY) + "px";
+  _touchRoutine.cards.forEach(c => c.classList.remove("drag-over-top","drag-over-bottom"));
+  const below = _touchRoutine.cards.find(c => {
+    if (c.dataset.id === _touchRoutine.id) return false;
+    const r = c.getBoundingClientRect();
+    return y >= r.top && y <= r.bottom;
+  });
+  if (below) {
+    const r = below.getBoundingClientRect();
+    below.classList.add(y < r.top + r.height / 2 ? "drag-over-top" : "drag-over-bottom");
+  }
+}
+
+function onRoutineTouchEnd(e) {
+  document.removeEventListener("touchmove", onRoutineTouchMove);
+  document.removeEventListener("touchend",  onRoutineTouchEnd);
+  if (_touchRoutine.ghost) { _touchRoutine.ghost.remove(); _touchRoutine.ghost = null; }
+  const y = e.changedTouches[0].clientY;
+  const target = _touchRoutine.cards.find(c => {
+    if (c.dataset.id === _touchRoutine.id) return false;
+    const r = c.getBoundingClientRect();
+    return y >= r.top && y <= r.bottom;
+  });
+  if (target) {
+    const after = y >= target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
+    const mine   = state.routines.filter(r => r.clientId === state.activeClientId);
+    const others = state.routines.filter(r => r.clientId !== state.activeClientId);
+    const fromIdx = mine.findIndex(r => r.id === _touchRoutine.id);
+    const toIdx   = mine.findIndex(r => r.id === target.dataset.id);
+    if (fromIdx !== -1 && toIdx !== -1) {
+      const [moved] = mine.splice(fromIdx, 1);
+      mine.splice(after ? (fromIdx < toIdx ? toIdx : toIdx + 1) : (fromIdx > toIdx ? toIdx : toIdx - 1), 0, moved);
+      state.routines = [...others, ...mine];
+      persist();
+      syncPush("saveRoutines", state.routines);
+    }
+  }
+  document.querySelectorAll(".routine-card").forEach(c =>
+    c.classList.remove("dragging","drag-over-top","drag-over-bottom"));
+  _touchRoutine.id = null;
+  renderRoutines();
+}
+
+// ─── TOUCH DRAG — Exercises ───────────────────────────────────────────────────
+function initExTouchDrag() {
+  document.querySelectorAll(".rbuilder-ex-block .drag-handle").forEach(handle => {
+    handle.addEventListener("touchstart", onExTouchStart, { passive: false });
+  });
+}
+
+let _touchEx = { idx: null, ghost: null, blocks: [] };
+
+function onExTouchStart(e) {
+  e.preventDefault();
+  const block = e.currentTarget.closest(".rbuilder-ex-block");
+  _touchEx.idx    = Number(block.dataset.ei);
+  _touchEx.blocks = [...document.querySelectorAll(".rbuilder-ex-block")];
+  const rect  = block.getBoundingClientRect();
+  const ghost = block.cloneNode(true);
+  ghost.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;
+    opacity:.8;pointer-events:none;z-index:9999;box-shadow:0 8px 24px #0008;transition:none`;
+  document.body.appendChild(ghost);
+  _touchEx.ghost   = ghost;
+  _touchEx.offsetY = e.touches[0].clientY - rect.top;
+  block.classList.add("dragging");
+  document.addEventListener("touchmove", onExTouchMove, { passive: false });
+  document.addEventListener("touchend",  onExTouchEnd);
+}
+
+function onExTouchMove(e) {
+  e.preventDefault();
+  const y = e.touches[0].clientY;
+  if (_touchEx.ghost) _touchEx.ghost.style.top = (y - _touchEx.offsetY) + "px";
+  _touchEx.blocks.forEach(b => b.classList.remove("drag-over-top","drag-over-bottom"));
+  const below = _touchEx.blocks.find(b => {
+    if (Number(b.dataset.ei) === _touchEx.idx) return false;
+    const r = b.getBoundingClientRect();
+    return y >= r.top && y <= r.bottom;
+  });
+  if (below) {
+    const r = below.getBoundingClientRect();
+    below.classList.add(y < r.top + r.height / 2 ? "drag-over-top" : "drag-over-bottom");
+  }
+}
+
+function onExTouchEnd(e) {
+  document.removeEventListener("touchmove", onExTouchMove);
+  document.removeEventListener("touchend",  onExTouchEnd);
+  if (_touchEx.ghost) { _touchEx.ghost.remove(); _touchEx.ghost = null; }
+  const y = e.changedTouches[0].clientY;
+  const target = _touchEx.blocks.find(b => {
+    if (Number(b.dataset.ei) === _touchEx.idx) return false;
+    const r = b.getBoundingClientRect();
+    return y >= r.top && y <= r.bottom;
+  });
+  if (target) {
+    const after    = y >= target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
+    const fromIdx  = _touchEx.idx;
+    const toIdx    = Number(target.dataset.ei);
+    const arr      = state.rbuilderExercises;
+    const [moved]  = arr.splice(fromIdx, 1);
+    arr.splice(after ? (fromIdx < toIdx ? toIdx : toIdx + 1) : (fromIdx > toIdx ? toIdx : toIdx - 1), 0, moved);
+  }
+  document.querySelectorAll(".rbuilder-ex-block").forEach(b =>
+    b.classList.remove("dragging","drag-over-top","drag-over-bottom"));
+  _touchEx.idx = null;
+  renderRbuilderExercises();
+}
+
+
+let _editClientId = null;
+
+function openEditClientModal(id) {
+  const c = state.clients.find(c => c.id === id);
+  if (!c) return;
+  _editClientId = id;
+  document.getElementById("edit-client-name").value   = c.name  || "";
+  document.getElementById("edit-client-notes").value  = c.notes || "";
+  document.getElementById("edit-client-avatar").value = c.avatar || "";
+  updateAvatarPreview(c.avatar || "");
+  document.getElementById("edit-client-modal").classList.add("show");
+  setTimeout(() => document.getElementById("edit-client-name").focus(), 50);
+}
+
+function closeEditClientModal() {
+  document.getElementById("edit-client-modal").classList.remove("show");
+  document.getElementById("edit-client-name").disabled     = false;
+  document.getElementById("edit-client-notes").style.display = "";
+  document.getElementById("edit-client-modal-title").textContent = "✏️ Edit Client";
+  _editClientId = null;
+}
+
+function previewClientAvatar() {
+  const val = document.getElementById("edit-client-avatar").value.trim();
+  updateAvatarPreview(val);
+}
+
+function updateAvatarPreview(url) {
+  const el = document.getElementById("edit-client-avatar-preview");
+  if (url) {
+    el.innerHTML = `<img src="${esc(url)}" style="width:64px;height:64px;object-fit:cover" onerror="this.parentElement.innerHTML='🏋️'">`;
+  } else {
+    el.innerHTML = "🏋️";
+  }
+}
+
+// saveEditClient defined below
+
+
+function openEditMeModal() {
+  _editClientId = "__me__";
+  document.getElementById("edit-client-name").value        = "Me (Trainer)";
+  document.getElementById("edit-client-name").disabled     = true;
+  document.getElementById("edit-client-notes").value       = "";
+  document.getElementById("edit-client-notes").style.display = "none";
+  document.getElementById("edit-client-avatar").value      = state.meAvatar || "";
+  updateAvatarPreview(state.meAvatar || "");
+  document.getElementById("edit-client-modal-title").textContent = "✏️ My Avatar";
+  document.getElementById("edit-client-modal").classList.add("show");
+}
+
+function saveEditClient() {
+  const avatar = document.getElementById("edit-client-avatar").value.trim();
+
+  if (_editClientId === "__me__") {
+    // Saving "Me (Trainer)" avatar
+    state.meAvatar = avatar;
+    persist();
+    renderClientList();
+    updateClientPill();
+    closeEditClientModal();
+    toast("✅ Avatar updated");
+    return;
+  }
+
+  // Saving a regular client
+  const name  = document.getElementById("edit-client-name").value.trim();
+  const notes = document.getElementById("edit-client-notes").value.trim();
+  if (!name) { toast("⚠ Name required"); return; }
+  const idx = state.clients.findIndex(c => c.id === _editClientId);
+  if (idx === -1) return;
+  state.clients[idx] = { ...state.clients[idx], name, notes, avatar };
+  persist();
+  const syncClients = state.clients.filter(c => c.id !== "__me__");
+  if (state.meAvatar) syncClients.push({ id: "__me__", avatar: state.meAvatar });
+  syncPush("saveClients", syncClients);
+  renderClientList();
+  updateClientPill();
+  closeEditClientModal();
+  toast("✅ Client updated");
+}
+
+function loadAvatarFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 200;
+      const scale = Math.min(MAX / img.width, MAX / img.height, 1);
+      const canvas = document.createElement("canvas");
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      document.getElementById("edit-client-avatar").value = dataUrl;
+      updateAvatarPreview(dataUrl);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 </script>
 
-<!-- CONFIRM MODAL -->
-<div class="modal-overlay" id="confirm-overlay" style="z-index:300">
-  <div class="modal" style="padding:24px 20px">
-    <div id="confirm-msg" style="font-size:15px;line-height:1.5;margin-bottom:20px;white-space:pre-wrap"></div>
-    <div style="display:flex;gap:10px">
-      <button id="confirm-cancel" style="flex:1;background:var(--card2);border:none;border-radius:10px;padding:13px;color:var(--muted);font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Cancel</button>
-      <button id="confirm-ok" style="flex:1;background:var(--accent);border:none;border-radius:10px;padding:13px;color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Confirm</button>
+<!-- EDIT CLIENT MODAL -->
+<div class="modal-overlay" id="edit-client-modal" onclick="if(event.target===this)closeEditClientModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeEditClientModal()">×</button>
+    <div class="modal-title" id="edit-client-modal-title">✏️ Edit Client</div>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+      <div id="edit-client-avatar-preview" style="width:64px;height:64px;border-radius:50%;overflow:hidden;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0">👤</div>
+      <div style="flex:1">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700">Avatar</div>
+        <label style="display:inline-block;background:var(--accent);color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">
+          📁 Choose image
+          <input type="file" id="edit-client-avatar-file" accept="image/*" onchange="loadAvatarFile(event)" style="display:none">
+        </label>
+        <div id="edit-client-avatar-hint" style="display:none;font-size:11px;color:#f6ad55;margin-top:6px;line-height:1.4"></div>
+        <input type="hidden" id="edit-client-avatar">
+      </div>
     </div>
+    <div class="mb8"><input type="text" id="edit-client-name" placeholder="Full name…"></div>
+    <div class="mb10"><textarea id="edit-client-notes" placeholder="Notes (age, goals, injuries…)" rows="2"></textarea></div>
+    <button class="btn btn-primary" onclick="saveEditClient()" style="margin-top:4px">💾 Save</button>
   </div>
 </div>
-
-<!-- CUSTOM MUSCLE OVERLAY -->
-<div class="modal-overlay" id="custom-muscle-overlay" onclick="if(event.target===this)closeCustomMuscleInput()" style="z-index:220">
-  <div class="modal" style="padding:20px 18px 28px">
-    <div class="modal-title" style="margin-bottom:14px">➕ Custom Muscle</div>
-    <input type="text" id="custom-muscle-input" placeholder="e.g. Serratus, Adductors…"
-      style="margin-bottom:12px"
-      onkeydown="if(event.key==='Enter')confirmCustomMuscle()">
-    <div style="display:flex;gap:8px">
-      <button onclick="closeCustomMuscleInput()" style="flex:1;background:var(--card2);border:none;border-radius:10px;padding:12px;color:var(--muted);font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Cancel</button>
-      <button onclick="confirmCustomMuscle()" style="flex:1;background:var(--accent);border:none;border-radius:10px;padding:12px;color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Add Muscle</button>
-    </div>
-  </div>
-</div>
-
-<!-- CUSTOM TAG OVERLAY -->
-<div class="modal-overlay" id="custom-tag-overlay" onclick="if(event.target===this)closeCustomTagInput()" style="z-index:220">
-  <div class="modal" style="padding:20px 18px 28px">
-    <div class="modal-title" style="margin-bottom:14px">🏷 New Tag</div>
-    <input type="text" id="custom-tag-input" placeholder="e.g. Mobility, Conditioning…"
-      style="margin-bottom:12px"
-      onkeydown="if(event.key==='Enter')confirmCustomTag()">
-    <div style="display:flex;gap:8px">
-      <button onclick="closeCustomTagInput()" style="flex:1;background:var(--card2);border:none;border-radius:10px;padding:12px;color:var(--muted);font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Cancel</button>
-      <button onclick="confirmCustomTag()" style="flex:1;background:var(--accent);border:none;border-radius:10px;padding:12px;color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:14px">Add Tag</button>
-    </div>
-  </div>
-</div>
-
 </body>
 </html>
