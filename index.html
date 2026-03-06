@@ -1393,13 +1393,13 @@ function saveRoutine() {
 
   if (state.editRoutineId) {
     state.routines = state.routines.map(r => r.id === state.editRoutineId
-      ? { ...r, name, day, exercises } : r);
+      ? { ...r, name, tags, exercises } : r);
     toast("✅ Routine updated");
   } else {
     state.routines.push({
       id: "r" + Date.now(),
       clientId: state.activeClientId,
-      name, day, exercises
+      name, tags, exercises
     });
     toast("✅ Routine saved");
   }
