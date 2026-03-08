@@ -625,7 +625,15 @@
 </div>
 
 <!-- CUSTOM CONFIRM MODAL -->
-
+<div class="modal-overlay" id="confirm-overlay" style="z-index:999">
+  <div class="modal">
+    <div class="modal-title" style="font-size:16px;margin-bottom:12px" id="confirm-msg"></div>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn btn-ghost" id="confirm-cancel" style="flex:1">Cancel</button>
+      <button class="btn btn-primary" id="confirm-ok" style="flex:1;background:var(--accent)">Delete</button>
+    </div>
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -760,7 +768,9 @@ let state = {
   routineTags: JSON.parse(JSON.stringify(DEFAULT_TAGS)), // available tags for routines
   exMeta: {},             // { exerciseName: { muscles: [] } }
   customMuscles: [],      // user-added muscle names
-  meAvatar: "",             // avatar URL for "Me (Trainer)"
+  meAvatar: "",
+  meName: "Me (Trainer)",
+  meNotes: "",
   muscleTargets: {}, // overrides: { clientId_muscle: number }
   routines: [],
   scriptUrl: localStorage.getItem("gym_script_url") || "",
@@ -839,9 +849,21 @@ function exObjsForDay(dayId) {
 }
 const maxW = sets => sets.length ? Math.max(...sets.map(s => s.w)) : 0;
 const vol  = sets => sets.reduce((t, s) => t + s.r * s.w, 0);
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm   = String(d.getMonth() + 1).padStart(2, '0');
+  const dd   = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
 const activeClientId = () => state.activeClientId;
-const clientLogs = () => state.logs.filter(l => l.clientId === state.activeClientId);
+const clientLogs = () => {
+  const activeId = state.activeClientId;
+  return state.logs.filter(l => {
+    const lid = l.clientId === "" || l.clientId === undefined ? null : l.clientId;
+    return lid === activeId;
+  });
+};
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener("DOMContentLoaded", () => {
@@ -872,6 +894,8 @@ function loadLocal() {
     state.muscleTargets = d.muscleTargets || {};
     state.customMuscles = d.customMuscles || [];
     state.meAvatar      = d.meAvatar      || "";
+    state.meName        = d.meName        || "Me (Trainer)";
+    state.meNotes       = d.meNotes        || "";
     state.routineTags   = d.routineTags   || JSON.parse(JSON.stringify(DEFAULT_TAGS));
     // Migrate old day-keyed library OR load flat library
     if (Array.isArray(d.library)) {
@@ -938,6 +962,8 @@ function persist() {
     muscleTargets: state.muscleTargets,
     customMuscles: state.customMuscles,
     meAvatar: state.meAvatar,
+    meName:   state.meName,
+    meNotes:  state.meNotes,
   }));
   // Persist active session separately so it survives page close
   if (state.loadedRoutine) {
@@ -980,7 +1006,12 @@ async function connectSheet() {
     if (res.error) throw new Error(res.error);
     state.scriptUrl = url;
     localStorage.setItem("gym_script_url", url);
-    if (res.logs) state.logs = res.logs;
+    if (res.logs) {
+      state.logs = res.logs.map(l => ({
+        ...l,
+        clientId: (l.clientId === "" || l.clientId === undefined) ? null : l.clientId
+      }));
+    }
     if (res.library) {
       if (Array.isArray(res.library)) {
         state.library = res.library.map(e => typeof e === "string" ? {name:e,muscles:[]} : {
@@ -1001,7 +1032,11 @@ async function connectSheet() {
     }
     if (res.clients) {
       const me = res.clients.find(c => c.id === "__me__");
-      if (me) state.meAvatar = me.avatar || "";
+      if (me) {
+        state.meAvatar = me.avatar || "";
+        state.meName   = me.meName  || "Me (Trainer)";
+        state.meNotes  = me.meNotes || "";
+      }
       state.clients = res.clients.filter(c => c.id !== "__me__");
     }
     if (res.routines)      state.routines      = res.routines;
@@ -1088,7 +1123,11 @@ async function syncNow() {
     }
     if (res.clients) {
       const me = res.clients.find(c => c.id === "__me__");
-      if (me) state.meAvatar = me.avatar || "";
+      if (me) {
+        state.meAvatar = me.avatar || "";
+        state.meName   = me.meName  || "Me (Trainer)";
+        state.meNotes  = me.meNotes || "";
+      }
       state.clients = res.clients.filter(c => c.id !== "__me__");
     }
     if (res.routines)      state.routines      = res.routines;
@@ -1129,7 +1168,7 @@ function updateClientPill() {
     const meImg = state.meAvatar
       ? `<img src="${esc(state.meAvatar)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px" onerror="this.style.display='none'">`
       : "";
-    pill.innerHTML = meImg + "Me";
+    pill.innerHTML = meImg + esc(state.meName || "Me");
   } else {
     const c = state.clients.find(c => c.id === state.activeClientId);
     if (!c) { pill.innerHTML = "Me 👤"; return; }
@@ -1155,7 +1194,7 @@ function renderClientList() {
     : `<div style="width:48px;height:48px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">👤</div>`;
   let html = `<div class="client-list-item${state.activeClientId === null ? " active" : ""}" onclick="selectClient(null)">
     ${meAvatarHtml}
-    <div style="flex:1"><div class="client-name">Me (Trainer)</div><div class="client-meta">Your own logs</div></div>
+    <div style="flex:1"><div class="client-name">${state.meName||"Me (Trainer)"}</div><div class="client-meta">Your own logs${state.meNotes ? " · " + esc(state.meNotes.slice(0,40)) : ""}</div></div>
     <div class="client-actions" onclick="event.stopPropagation()">
       <button onclick="openEditMeModal()">✏️</button>
     </div>
@@ -1205,7 +1244,7 @@ function addClient() {
   toast("✅ Client added: " + name);
 }
 
-function deleteClient(id) {
+async function deleteClient(id) {
   const c = state.clients.find(c => c.id === id);
   customConfirm(`Delete "${c?.name}"? Their logs go too.`, () => {
     state.clients = state.clients.filter(c => c.id !== id);
@@ -1473,7 +1512,7 @@ function saveRoutine() {
   syncPush("saveRoutines", state.routines);
 }
 
-function deleteRoutine(id) {
+async function deleteRoutine(id) {
   const r = state.routines.find(r => r.id === id);
   customConfirm(`Delete routine "${r?.name}"?`, () => {
     state.routines = state.routines.filter(r => r.id !== id);
@@ -1634,7 +1673,7 @@ function renderSessionView() {
   let html = "";
   r.exercises.forEach((ex, ei) => {
     const isDone = !!(state.sessionDone && state.sessionDone[ex.name]);
-    const prev = clientLogs().filter(l => l.exercise === ex.name && l.date < date);
+    const prev = clientLogs().filter(l => l.exercise === ex.name && l.date <= date);
     const best = prev.length ? Math.max(...prev.map(l => maxW(l.sets))) : null;
     const plannedStr = ex.sets.map((s,i) => `${s.r}×${s.w>0?s.w+"kg":"BW"}`).join("  ");
     const exMeta = state.exMeta[ex.name] || {};
@@ -1679,14 +1718,21 @@ function renderSessionView() {
             ${esc(ex.name)}
             ${isDone ? '<span class="rex-done-badge">Done</span>' : ""}
           </div>
-          <div class="rex-planned">${plannedStr}${best!==null ? "  ·  Best: "+best+"kg" : "  ·  🆕 First time"}${muscleTag ? `  <span style="opacity:.6">· ${muscleTag}</span>` : ""}</div>
+          <div class="rex-planned">${(() => {
+          const lastLog = prev.length ? [...prev].sort((a,b)=>b.date.localeCompare(a.date))[0] : null;
+          if (lastLog) return lastLog.sets.map(s=>`${s.r}×${s.w>0?s.w+"kg":"BW"}`).join(" · ") + ` <span style="opacity:.5;font-size:10px">(${lastLog.date})</span>`;
+          return "🆕 First time";
+        })()}${muscleTag ? `  <span style="opacity:.6">· ${muscleTag}</span>` : ""}</div>
         </div>
         <span class="rex-chevron${state.sessionOpenIdx===ei?" open":""}" id="chevron-${ei}">›</span>
       </div>
       <div class="routine-ex-log-area${state.sessionOpenIdx===ei?" open":""}" id="rexlog-${ei}">
-        ${best!==null
-          ? `<div class="prev-best-inline has">✅ Previous best: ${best} kg</div>`
-          : `<div class="prev-best-inline none">🆕 First time logging ${esc(ex.name)}</div>`}
+        ${(() => {
+          const lastLog = prev.length ? [...prev].sort((a,b)=>b.date.localeCompare(a.date))[0] : null;
+          if (!lastLog) return `<div class="prev-best-inline none">🆕 First time logging ${esc(ex.name)}</div>`;
+          const setsStr = lastLog.sets.map(s=>`${s.r}×${s.w>0?s.w+"kg":"BW"}`).join("  ·  ");
+          return `<div class="prev-best-inline has"><span style="opacity:.6;font-size:11px">${lastLog.date}</span>  ${setsStr}</div>`;
+        })()}
         <div class="sets-header"><span>#</span><span>Reps</span><span>kg</span><span></span></div>
         <div id="session-sets-${ei}">${setRowsHtml}</div>
         <button class="btn btn-add-set" style="margin-bottom:10px" onclick="sessionAddSet(${ei})">+ Add Set</button>
@@ -1923,8 +1969,8 @@ function confirmCustomMuscle() {
 }
 function getEditExMuscles() { return [...editExMuscles]; }
 // populateDaySelects removed — library is now flat, tags are per-routine
-function renderExerciseDropdown() {
-  const sel = document.getElementById("log-exercise");
+function renderExerciseDropdown(targetId) {
+  const sel = document.getElementById(targetId || "log-exercise");
   if (!sel) return;
   const cur = sel.value;
   sel.innerHTML = '<option value="">— Select exercise —</option>';
@@ -1942,18 +1988,20 @@ function onExerciseChange() {
   if (!ex) { hideSetsSection(); return; }
 
   const date = document.getElementById("log-date").value;
-  const prev = clientLogs().filter(l => l.exercise === ex && l.date < date);
+  const prev = clientLogs().filter(l => l.exercise === ex && l.date <= date && l.id !== state.editId);
   const best = prev.length ? Math.max(...prev.map(l => maxW(l.sets))) : null;
   const banner = document.getElementById("prev-banner");
   banner.style.display = "block";
   const meta = state.exMeta[ex] || {};
   const muscleStr = (meta.muscles || [meta.primary, meta.secondary].filter(Boolean)).filter(Boolean).join(" · ");
-  if (best !== null) {
+  const lastLog = prev.length ? [...prev].sort((a,b) => b.date.localeCompare(a.date))[0] : null;
+  if (lastLog) {
+    const setsStr = lastLog.sets.map(s => `${s.r}×${s.w > 0 ? s.w + "kg" : "BW"}`).join("  ·  ");
     banner.className = "prev-banner has";
-    banner.innerHTML = `✅ Previous best: <b>${best} kg</b>${muscleStr ? `  <span style="opacity:.7;font-size:11px">· ${muscleStr}</span>` : ""}`;
+    banner.innerHTML = `<span style="opacity:.6;font-size:11px">${lastLog.date}</span>  ${setsStr}${muscleStr ? `  <span style="opacity:.5;font-size:11px">· ${muscleStr}</span>` : ""}`;
   } else {
     banner.className = "prev-banner none";
-    banner.innerHTML = `🆕 First time logging ${esc(ex)}${muscleStr ? `  <span style="opacity:.7;font-size:11px">· ${muscleStr}</span>` : ""}`;
+    banner.innerHTML = `🆕 First time logging ${esc(ex)}${muscleStr ? `  <span style="opacity:.5;font-size:11px">· ${muscleStr}</span>` : ""}`;
   }
 
   if (state.editId === null) {
@@ -1996,7 +2044,7 @@ function renderSets() {
   const container = document.getElementById("sets-container");
   const date = document.getElementById("log-date").value;
   const ex   = document.getElementById("log-exercise").value;
-  const prev = clientLogs().filter(l => l.exercise === ex && l.date < date);
+  const prev = clientLogs().filter(l => l.exercise === ex && l.date <= date && l.id !== state.editId);
   const best = prev.length ? Math.max(...prev.map(l => maxW(l.sets))) : null;
   container.innerHTML = "";
   state.sets.forEach((s, i) => {
@@ -2077,9 +2125,14 @@ function startEdit(id) {
   const entry = state.logs.find(l => l.id === id);
   if (!entry) return;
   state.editId = id;
+  // Clear any active session so the log tab is free
+  state.loadedRoutine = null;
+  state.sessionInputs = {};
+  state.sessionDone = {};
   document.getElementById("log-date").value = entry.date;
   renderExerciseDropdown();
   document.getElementById("log-exercise").value = entry.exercise;
+  onExerciseChange();
   state.sets = entry.sets.map(s => ({ r: String(s.r), w: String(s.w) }));
   document.getElementById("prev-banner").style.display = "none";
   document.getElementById("sets-section").style.display = "block";
@@ -2107,7 +2160,7 @@ async function deleteSessionEntry(entryId, sid) {
 }
 
 
-function deleteEntry(id) {
+async function deleteEntry(id) {
   const e = state.logs.find(l => l.id === id);
   customConfirm(`Delete ${e?.exercise} (${e?.date})?`, async () => {
     state.logs = state.logs.filter(l => l.id !== id);
@@ -2377,7 +2430,7 @@ function getWeekBounds(offset) {
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   sunday.setHours(23,59,59,999);
-  const fmt = d => d.toISOString().slice(0,10);
+  const fmt = d => { const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), dd = String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${dd}`; };
   return { start: fmt(monday), end: fmt(sunday), label: fmt(monday) + " → " + fmt(sunday) };
 }
 
@@ -2609,7 +2662,7 @@ function toggleWorkoutSession(sid) {
   renderHistory();
 }
 
-function deleteWorkoutSession(sessionId) {
+async function deleteWorkoutSession(sessionId) {
   // collect ids of all logs in this session
   const ids = clientLogs()
     .filter(l => l.workoutSessionId === sessionId)
@@ -2728,7 +2781,9 @@ function renderHistory() {
         </div>`;
       });
 
-      html += `</div></div></div>`;
+      html += `
+          <button onclick="addExerciseToSession('${sid}')" style="width:100%;margin-top:8px;background:var(--card2);border:1px dashed var(--border);border-radius:8px;color:var(--muted);padding:8px;font-size:13px;cursor:pointer;font-family:inherit">+ Add exercise</button>
+        </div></div></div>`;
     }
   });
 
@@ -2812,7 +2867,7 @@ function cancelTagHold() {
   if (_tagHoldTimer) { clearTimeout(_tagHoldTimer); _tagHoldTimer = null; }
 }
 
-function deleteRoutineTag(t) {
+async function deleteRoutineTag(t) {
   const usedIn = state.routines.filter(r => r.tags && r.tags.includes(t)).map(r => r.name);
   const warning = usedIn.length
     ? `\nAlso removes it from: ${usedIn.join(", ")}` : "";
@@ -3380,14 +3435,15 @@ function updateAvatarPreview(url) {
 
 function openEditMeModal() {
   _editClientId = "__me__";
-  document.getElementById("edit-client-name").value        = "Me (Trainer)";
-  document.getElementById("edit-client-name").disabled     = true;
-  document.getElementById("edit-client-notes").value       = "";
-  document.getElementById("edit-client-notes").style.display = "none";
-  document.getElementById("edit-client-avatar").value      = state.meAvatar || "";
+  document.getElementById("edit-client-name").value          = state.meName || "Me (Trainer)";
+  document.getElementById("edit-client-name").disabled       = false;
+  document.getElementById("edit-client-notes").value         = state.meNotes || "";
+  document.getElementById("edit-client-notes").style.display = "";
+  document.getElementById("edit-client-avatar").value        = state.meAvatar || "";
   updateAvatarPreview(state.meAvatar || "");
-  document.getElementById("edit-client-modal-title").textContent = "✏️ My Avatar";
+  document.getElementById("edit-client-modal-title").textContent = "✏️ Edit Me";
   document.getElementById("edit-client-modal").classList.add("show");
+  setTimeout(() => document.getElementById("edit-client-name").focus(), 50);
 }
 
 function saveEditClient() {
@@ -3443,6 +3499,77 @@ function loadAvatarFile(e) {
   reader.readAsDataURL(file);
 }
 
+async function addExerciseToSession(sid) {
+  // Find one entry from this session to get date/routineName/sessionId
+  const ref = state.logs.find(l => (l.workoutSessionId || ("solo_" + l.id)) === sid);
+  if (!ref) return;
+  _addToSessionSid = sid;
+  _addToSessionDate = ref.date;
+  _addToSessionRoutineName = ref.routineName || null;
+  _addToSessionWeekLabel = ref.weekLabel || null;
+  // Open a small modal to pick exercise + sets
+  document.getElementById("add-ex-session-date").textContent = ref.date;
+  document.getElementById("add-ex-session-exercise").value = "";
+  renderExerciseDropdown("add-ex-session-exercise");
+  _addExSets = [{ r: "", w: "" }];
+  renderAddExSets();
+  document.getElementById("add-ex-session-modal").classList.add("show");
+}
+
+let _addToSessionSid = null;
+let _addToSessionDate = null;
+let _addToSessionRoutineName = null;
+let _addToSessionWeekLabel = null;
+let _addExSets = [{ r: "", w: "" }];
+
+function renderAddExSets() {
+  const c = document.getElementById("add-ex-sets-container");
+  c.innerHTML = "";
+  _addExSets.forEach((s, i) => {
+    const row = document.createElement("div");
+    row.className = "set-row";
+    row.innerHTML = `
+      <div class="set-num">${i+1}</div>
+      <input type="number" inputmode="numeric" placeholder="Reps" value="${s.r}" oninput="_addExSets[${i}].r=this.value">
+      <input type="number" inputmode="decimal" placeholder="kg" value="${s.w}" oninput="_addExSets[${i}].w=this.value">
+      <button class="set-del" onclick="_addExSets.splice(${i},1);renderAddExSets()">×</button>`;
+    c.appendChild(row);
+  });
+}
+
+async function saveAddExToSession() {
+  const ex = document.getElementById("add-ex-session-exercise").value;
+  if (!ex) return toast("⚠️ Pick an exercise");
+  const validSets = _addExSets.filter(s => s.r !== "" && s.w !== "").map(s => ({ r: Number(s.r), w: Number(s.w) }));
+  if (!validSets.length) return toast("⚠️ Add at least one set");
+  const entry = {
+    id: Date.now(),
+    date: _addToSessionDate,
+    exercise: ex,
+    sets: validSets,
+    clientId: state.activeClientId,
+    workoutSessionId: _addToSessionSid,
+    routineName: _addToSessionRoutineName,
+    weekLabel: _addToSessionWeekLabel,
+  };
+  state.logs.push(entry);
+  persist();
+  historyOpenSessions.add(_addToSessionSid);
+  document.getElementById("add-ex-session-modal").classList.remove("show");
+  renderHistory();
+  if (state.scriptUrl) {
+    try {
+      const res = await fetchApi(state.scriptUrl, "addLog", entry);
+      if (res.id) {
+        const idx = state.logs.findIndex(l => l.id === entry.id);
+        if (idx !== -1) state.logs[idx].id = res.id;
+      }
+      setBadge("ok");
+    } catch { setBadge("err"); }
+  }
+  toast("✅ Exercise added to session");
+}
+
 </script>
 
 <!-- EDIT CLIENT MODAL -->
@@ -3465,6 +3592,22 @@ function loadAvatarFile(e) {
     <div class="mb8"><input type="text" id="edit-client-name" placeholder="Full name…"></div>
     <div class="mb10"><textarea id="edit-client-notes" placeholder="Notes (age, goals, injuries…)" rows="2"></textarea></div>
     <button class="btn btn-primary" onclick="saveEditClient()" style="margin-top:4px">💾 Save</button>
+  </div>
+</div>
+
+<!-- ADD EXERCISE TO SESSION MODAL -->
+<div class="modal-overlay" id="add-ex-session-modal" onclick="if(event.target===this)this.classList.remove('show')" style="z-index:160">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('add-ex-session-modal').classList.remove('show')">×</button>
+    <div class="modal-title">Add Exercise</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px" id="add-ex-session-date"></div>
+    <select id="add-ex-session-exercise" class="mb10" style="font-size:13px">
+      <option value="">— Select exercise —</option>
+    </select>
+    <div class="sets-header"><span>#</span><span>Reps</span><span>kg</span><span></span></div>
+    <div id="add-ex-sets-container"></div>
+    <button class="btn btn-add-set" onclick="_addExSets.push({r:'',w:''});renderAddExSets()" style="margin-bottom:14px">+ Add Set</button>
+    <button class="btn btn-primary" onclick="saveAddExToSession()">💾 Save</button>
   </div>
 </div>
 </body>
